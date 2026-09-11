@@ -1,0 +1,17 @@
+{
+  "name": "Bullpen Charts",
+  "short_name": "Bullpen",
+  "description": "Chart pitching bullpens by team and pitcher: location, pitch type, velocity, intended target, strike rate, command and heat maps.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F1F3F0",
+  "theme_color": "#F1F3F0",
+  "categories": ["sports", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

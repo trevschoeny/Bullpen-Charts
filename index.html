@@ -1,0 +1,2012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Chart pitching bullpens by team and pitcher: location, pitch type, velocity, intended target, strike rate, command and heat maps.">
+<meta name="theme-color" content="#F1F3F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1412" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bullpen">
+<link rel="manifest" href="manifest.webmanifest">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<link rel="icon" href="icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; }
+  body { font: 14px system-ui, sans-serif; background: #F1F3F0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+  /* Safe-area padding so the sticky header clears an iPad notch in standalone mode. */
+  .topbar { padding-top: env(safe-area-inset-top, 0px); }
+</style>
+</head>
+<body>
+<title>Bullpen Charts</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ---------- tokens: light is the base, both dark paths redefine only tokens ---------- */
+:root{
+  --bg:#F1F3F0; --surf:#FFFFFF; --surf2:#F7F8F5; --surf3:#EAEDE8;
+  --line:#DCE0D8; --line2:#C6CCC1;
+  --ink:#191E1B; --ink2:#4C5450; --ink3:#7C8681;
+  --accent:#B23A2B; --accent-ink:#FFFFFF; --accent-soft:#F6E4E1;
+  --good:#2C7A57; --warn:#9A6B10; --crit:#B23A2B;
+  --c1:#2E6FD9; --c2:#C97C0A; --c3:#159A8C; --c4:#8B5CD6; --c5:#D4457F; --c6:#6B7580;
+  --zone-line:#3D4744; --zone-fill:rgba(45,60,55,.045); --shadow-line:#B9C0B7;
+  --plate:#D8DCD4;
+  --heat:178,58,43;
+  --shadow-sm:0 1px 2px rgba(20,28,24,.07);
+  --shadow-md:0 6px 20px -8px rgba(20,28,24,.22);
+  --r:10px;
+  --topbar:52px;
+  --disp:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Public Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1412; --surf:#161C19; --surf2:#1C2320; --surf3:#232B27;
+    --line:#2B3430; --line2:#3A443F;
+    --ink:#E7EDE9; --ink2:#A7B2AC; --ink3:#79837E;
+    --accent:#E2604F; --accent-ink:#1A0F0D; --accent-soft:#33201C;
+    --good:#4FA57F; --warn:#D2A33F; --crit:#E2604F;
+    --c1:#5A8FE0; --c2:#BC8226; --c3:#22A091; --c4:#9B7DE2; --c5:#E25A8C; --c6:#8A949E;
+    --zone-line:#C3CCC7; --zone-fill:rgba(200,220,210,.05); --shadow-line:#3E4A45;
+    --plate:#2A322E;
+    --heat:226,96,79;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 8px 24px -10px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1412; --surf:#161C19; --surf2:#1C2320; --surf3:#232B27;
+  --line:#2B3430; --line2:#3A443F;
+  --ink:#E7EDE9; --ink2:#A7B2AC; --ink3:#79837E;
+  --accent:#E2604F; --accent-ink:#1A0F0D; --accent-soft:#33201C;
+  --good:#4FA57F; --warn:#D2A33F; --crit:#E2604F;
+  --c1:#5A8FE0; --c2:#BC8226; --c3:#22A091; --c4:#9B7DE2; --c5:#E25A8C; --c6:#8A949E;
+  --zone-line:#C3CCC7; --zone-fill:rgba(200,220,210,.05); --shadow-line:#3E4A45;
+  --plate:#2A322E;
+  --heat:226,96,79;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 8px 24px -10px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+h1,h2,h3{margin:0;font-family:var(--disp);font-weight:600;letter-spacing:.005em;text-wrap:balance}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px 64px}
+.topbar{position:sticky;top:0;z-index:40;background:var(--surf);border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:18px;padding-top:11px;padding-bottom:0;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;padding-bottom:11px}
+.seams{width:26px;height:26px;flex:0 0 auto}
+.brand-name{font-family:var(--disp);font-weight:700;font-size:20px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.09em;text-transform:uppercase;line-height:1;margin-top:3px}
+.tabs{display:flex;gap:2px;margin-left:auto;align-self:flex-end}
+.tab{background:none;border:0;padding:9px 13px 10px;font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);cursor:pointer;border-bottom:2px solid transparent}
+.tab:hover{color:var(--ink2)}
+.tab[aria-current="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+.notice{background:var(--accent-soft);border-bottom:1px solid var(--line);font-size:13px;color:var(--ink2)}
+.notice .wrap{padding-top:8px;padding-bottom:8px}
+.notice strong{color:var(--ink)}
+
+/* ---------- generic ---------- */
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink3)}
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:var(--r)}
+.pad{padding:16px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1 1 auto}
+.muted{color:var(--ink3)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.hidden{display:none!important}
+
+.btn{background:var(--surf2);border:1px solid var(--line2);border-radius:8px;padding:7px 13px;cursor:pointer;font-size:14px;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--surf3)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn-primary:hover{filter:brightness(1.07)}
+.btn-sm{padding:4px 9px;font-size:13px;border-radius:7px}
+.btn-ghost{background:none;border-color:transparent;color:var(--ink3)}
+.btn-ghost:hover{background:var(--surf3);color:var(--ink)}
+.btn-danger:hover{background:var(--accent-soft);color:var(--crit);border-color:var(--crit)}
+
+select,input[type=text],input[type=number],input[type=date],textarea{
+  background:var(--surf);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;
+  font:inherit;color:var(--ink);max-width:100%}
+select{cursor:pointer;padding-right:26px}
+label.fld{display:flex;flex-direction:column;gap:4px}
+label.fld > span{font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3)}
+
+/* ---------- pen layout ---------- */
+.pen{display:grid;gap:18px;align-items:start;margin-top:18px;
+  grid-template-columns:minmax(0,1fr) 340px;
+  grid-template-rows:min-content auto;   /* keep the log tight under the rail */
+  grid-template-areas:"zone entry" "zone log"}
+.a-zone{grid-area:zone}.a-entry{grid-area:entry}.a-log{grid-area:log}
+/* Stacked (tablet portrait, phone): entry controls sit ABOVE the zone so you
+   never scroll between picking a pitch and tapping where it went. */
+@media (max-width:900px){
+  .pen{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;
+    grid-template-areas:"entry" "zone" "log"}
+}
+
+.sessionbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:18px;
+  background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px}
+.who{display:flex;flex-direction:column;gap:1px;min-width:0}
+.who b{font-family:var(--disp);font-size:23px;font-weight:700;letter-spacing:.01em;line-height:1.05}
+
+/* zone */
+.zonewrap{position:relative;width:100%;max-width:520px;margin:0 auto}
+.zonewrap canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none}
+.zonewrap svg{position:relative;display:block;width:100%;height:auto;touch-action:manipulation}
+.ripple{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
+  border:2px solid var(--accent);pointer-events:none;animation:rip .42s ease-out forwards}
+@keyframes rip{from{transform:scale(.35);opacity:.95}to{transform:scale(1.15);opacity:0}}
+@media (prefers-reduced-motion:reduce){.ripple{animation:none;opacity:0}}
+/* Chart bar: everything that changes what the NEXT tap records, pinned within
+   reach of the zone so you never scroll away mid-bullpen. */
+.chartbar{position:sticky;top:calc(var(--topbar) + 4px);z-index:30;
+  background:var(--surf);border-bottom:1px solid var(--line);
+  margin:-16px -16px 12px;padding:11px 16px 12px;border-radius:var(--r) var(--r) 0 0;
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ptrow{display:flex;gap:7px;flex-wrap:wrap}
+.ptchip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;
+  border:1.5px solid var(--line2);background:var(--surf2);cursor:pointer;font-size:14px;font-weight:500;
+  color:var(--ink2);white-space:nowrap}
+.ptchip:hover{background:var(--surf3)}
+.ptchip[aria-checked="true"]{border-width:2px;padding:7px 13px;background:var(--surf3);
+  color:var(--ink);font-weight:600}
+.ptchip .swatch{box-shadow:0 0 0 1px var(--surf)}
+.ptchip[aria-checked="false"] .swatch{background:transparent!important;border:2px solid currentColor;opacity:.65}
+.ptchip kbd{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:1px}
+.cbvelo{display:flex;align-items:center;gap:5px;margin-left:auto}
+.cbvelo input{width:74px;font-family:var(--mono);font-size:18px;font-weight:500;text-align:center;padding:6px 4px}
+.cbvelo button{width:34px;height:36px;border:1px solid var(--line2);background:var(--surf2);
+  border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:15px;line-height:1}
+.cbvelo button:hover{background:var(--surf3)}
+.cbvelo .unit{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+@media (max-width:520px){.cbvelo{margin-left:0}}
+
+.taphint{font-size:12.5px;line-height:1.45;color:var(--ink2);
+  background:var(--surf2);border:1px dashed var(--line2);border-radius:8px;padding:7px 11px;margin-bottom:10px}
+.taphint b{color:var(--ink)}
+.viewtog{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.viewtog button{border:0;background:var(--surf2);padding:5px 11px;cursor:pointer;font-size:12.5px;
+  font-weight:500;color:var(--ink3);border-right:1px solid var(--line2)}
+.viewtog button:last-child{border-right:0}
+.viewtog button[aria-checked="true"]{background:var(--surf3);color:var(--ink);font-weight:600}
+@media (pointer:coarse){.viewtog button{padding:8px 14px;font-size:14px}}
+.zone-hit{cursor:crosshair}
+.armed .zone-hit{cursor:cell}
+/* NOTE: font-size inside an SVG resolves in USER UNITS, not screen px —
+   the zone viewBox is 100x112, so these are deliberately tiny numbers. */
+.sidelabel{font-family:var(--mono);font-size:2.5px;letter-spacing:.22px;text-transform:uppercase;fill:var(--ink3)}
+.zonetick{font-family:var(--mono);font-size:2.9px;fill:var(--ink3)}
+/* Colors are set inline per mark so they beat these class rules — a `stroke`
+   presentation attribute does NOT, which is what made balls invisible. */
+.dot{stroke-width:1.4;cursor:pointer;touch-action:none}
+.dragging .dot{cursor:grabbing}
+.lifted .dot{stroke-width:2.6;stroke:var(--ink)!important}
+.lifted{filter:drop-shadow(0 1.2px 1.6px rgba(0,0,0,.45))}
+.ball-open{stroke-width:2.6}
+.selring{fill:none;stroke:var(--ink);stroke-width:0.8;opacity:.9}
+.grabpad{fill:transparent;cursor:grab;touch-action:none}
+
+.editbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px;
+  background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:9px 12px}
+.editbar .who{font-size:13px;color:var(--ink);font-weight:600;margin-right:2px}
+.editbar select,.editbar input{padding:6px 9px;font-size:13.5px;background:var(--surf)}
+.editbar input[type=number]{width:76px;font-family:var(--mono);text-align:center}
+.editbar .sp{margin-left:auto;display:flex;gap:7px}
+
+/* entry rail */
+.rail{display:flex;flex-direction:column;gap:12px}
+.ptgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pt{display:flex;align-items:center;gap:7px;background:var(--surf2);border:1px solid var(--line);
+  border-radius:8px;padding:7px 9px;cursor:pointer;text-align:left;font-size:13.5px;font-weight:500}
+.pt:hover{background:var(--surf3)}
+.pt[aria-pressed="true"]{border-color:var(--ink2);background:var(--surf3);box-shadow:inset 0 0 0 1px var(--ink2)}
+.swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.pt kbd{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.velo{display:flex;align-items:stretch;gap:6px}
+.velo input{flex:1 1 auto;font-family:var(--mono);font-size:22px;font-weight:500;text-align:center;padding:4px 6px;width:100%}
+.stepper{display:flex;flex-direction:column;gap:3px}
+.stepper button{width:30px;flex:1;border:1px solid var(--line2);background:var(--surf2);border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1}
+.stepper button:hover{background:var(--surf3)}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+@media (max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:var(--surf);padding:11px 13px 12px;display:flex;flex-direction:column;gap:2px}
+.tile b{font-family:var(--disp);font-size:29px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.tile small{font-size:11.5px;color:var(--ink3)}
+
+/* log */
+.log{max-height:340px;overflow:auto;border-top:1px solid var(--line)}
+.logrow{display:grid;grid-template-columns:26px auto 1fr auto 22px;gap:8px;align-items:center;
+  padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left}
+.logrow:hover{background:var(--surf2)}
+.logrow[aria-selected="true"]{background:var(--surf3)}
+.logrow .n{font-family:var(--mono);font-size:11px;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
+  padding:1px 7px 2px;border-radius:20px;border:1px solid var(--line2);white-space:nowrap}
+.pill{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:1px 6px;border-radius:4px;text-transform:uppercase}
+.pill.s{background:var(--surf3);color:var(--good);border:1px solid currentColor}
+.pill.b{background:var(--surf3);color:var(--ink3);border:1px solid var(--line2)}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);
+  text-align:right;padding:7px 10px;border-bottom:1px solid var(--line2);font-weight:500;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:0}
+.tblwrap{overflow-x:auto}
+
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);align-items:center}
+.legend span.k{display:inline-flex;align-items:center;gap:5px}
+
+.empty{padding:34px 20px;text-align:center;color:var(--ink3);font-size:14px}
+
+/* Team picker — the way in */
+.pickwrap{max-width:600px;margin:0 auto;padding:52px 0 40px;text-align:center}
+.pickhead{font-family:var(--disp);font-size:34px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+.picksub{margin:9px 0 26px;color:var(--ink3);font-size:14.5px}
+.pickgrid{display:flex;flex-direction:column;gap:11px;text-align:left}
+.signin{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;max-width:440px;margin:0 auto}
+.signin input{flex:1 1 240px;padding:11px 13px;font-size:16px}
+@media (pointer:coarse){.signin input{padding:13px}}
+.teamcard{display:flex;flex-direction:column;gap:4px;background:var(--surf);border:1px solid var(--line2);
+  border-left:4px solid var(--accent);border-radius:var(--r);padding:17px 20px;cursor:pointer;
+  box-shadow:var(--shadow-sm);width:100%;text-align:left}
+.teamcard:hover{background:var(--surf2);border-color:var(--accent)}
+.tc-name{font-family:var(--disp);font-size:25px;font-weight:700;line-height:1.1}
+.tc-meta{font-size:12.5px;color:var(--ink3)}
+@media (pointer:coarse){.teamcard{padding:21px 20px}.tc-name{font-size:27px}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}}
+.sechead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:26px 0 10px}
+.sechead h2{font-size:20px;letter-spacing:.03em;text-transform:uppercase}
+.card-list{display:flex;flex-direction:column}
+.sess{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)}
+.sess:last-child{border-bottom:0}
+.sess-t{font-family:var(--disp);font-size:18px;font-weight:600;line-height:1.15}
+.dim{font-size:12.5px;color:var(--ink3)}
+.tip{position:fixed;z-index:60;pointer-events:none;background:var(--surf);border:1px solid var(--line2);
+  border-radius:8px;padding:7px 10px;font-size:12.5px;box-shadow:var(--shadow-md);max-width:230px}
+.tip .num{font-size:12px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.inline-note{font-size:12.5px;color:var(--ink3);line-height:1.45}
+
+/* ---------- in-page dialogs (browser prompt/confirm are blocked in the viewer) ---------- */
+.scrim{position:fixed;inset:0;z-index:80;background:rgba(12,18,15,.5);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surf);border:1px solid var(--line2);border-radius:14px;box-shadow:var(--shadow-md);
+  width:100%;max-width:400px;padding:20px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow:auto}
+.modal h3{font-size:21px;letter-spacing:.02em}
+.modal p{margin:0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.modal .fld input{width:100%}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;padding:10px;border:1px solid var(--line2);background:var(--surf2);border-radius:9px;cursor:pointer;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:2px}
+
+/* ---------- touch / tablet ---------- */
+button{touch-action:manipulation}
+.zonewrap{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+@media (pointer:coarse){
+  :root{--topbar:62px}
+  .ptchip{padding:11px 17px;font-size:15px}
+  .ptchip[aria-checked="true"]{padding:10px 16px}
+  .cbvelo button{width:42px;height:44px}
+  .cbvelo input{width:84px;font-size:20px}
+  .btn{padding:11px 16px}
+  .btn-sm{padding:8px 12px}
+  .tab{padding:12px 15px 13px;font-size:16px}
+  .pt{padding:12px 11px;font-size:15px}
+  .logrow{padding:11px 12px;grid-template-columns:26px auto 1fr auto 34px}
+  .stepper button{width:46px}
+  .velo input{font-size:26px}
+  select,input[type=text],input[type=number],input[type=date]{padding:11px 12px;font-size:16px}
+  input[type=checkbox]{width:19px;height:19px}
+  .zonewrap{max-width:620px}
+}
+</style>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <svg class="seams" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="14" fill="var(--surf2)" stroke="var(--line2)" stroke-width="1.5"/>
+        <path d="M7.5 5.5C11 10 11.5 22 7.5 26.5" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M24.5 5.5C21 10 20.5 22 24.5 26.5" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="brand-name">Bullpen Charts</div>
+        <div class="brand-sub" id="brandsub">Pitch logging &amp; command</div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-view="pen" aria-current="true">Pen</button>
+      <button class="tab" data-view="sessions">Sessions</button>
+      <button class="tab" data-view="analytics">Analytics</button>
+      <button class="tab" data-view="roster">Roster</button>
+    </nav>
+  </div>
+</header>
+<div class="notice hidden" id="notice"><div class="wrap"><span id="noticetext"></span></div></div>
+
+<main class="wrap" id="app"></main>
+<div class="tip hidden" id="tip"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =======================================================================
+   Domain constants — real units, catcher's view
+   ======================================================================= */
+var PLATE_W   = 17/12;            // 17 in = 1.4167 ft
+var HALF_PL   = PLATE_W/2;
+var BALL_D    = 2.9/12;           // baseball diameter, ft
+var BALL_R    = BALL_D/2;
+var VIEW      = {x0:-2.05, x1:2.05, z0:0.10, z1:4.70};   // plotted region, ft
+
+var PITCH_TYPES = [
+  {code:"FB", label:"Fastball",  cvar:"--c1"},
+  {code:"CH", label:"Changeup",  cvar:"--c2"},
+  {code:"CB", label:"Curveball", cvar:"--c3"},
+  {code:"SL", label:"Slider",    cvar:"--c4"},
+  {code:"2S", label:"Two-seam",  cvar:"--c5"},
+  {code:"OT", label:"Other",     cvar:"--c6"}
+];
+var PT = {}; PITCH_TYPES.forEach(function(p){ PT[p.code]=p; });
+
+var ZONE_PRESETS = [
+  {name:"8U–10U",  bot:1.30, top:2.90},
+  {name:"11U–12U", bot:1.45, top:3.10},
+  {name:"13U–14U", bot:1.55, top:3.30},
+  {name:"HS+",     bot:1.60, top:3.45}
+];
+
+function cssv(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function ptColor(code){ return cssv((PT[code]||PT.OT).cvar); }
+/* UUIDs so ids are valid in Postgres as well as in the local and artifact
+   backends. crypto.randomUUID needs a secure context; the fallback is a
+   correctly-shaped v4 for the rare browser without it. */
+function uid(){
+  try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
+  var b=new Uint8Array(16);
+  try{ crypto.getRandomValues(b); }
+  catch(e){ for(var i=0;i<16;i++) b[i]=Math.floor(Math.random()*256); }
+  b[6]=(b[6]&0x0f)|0x40; b[8]=(b[8]&0x3f)|0x80;
+  var h=[].map.call(b,function(x){ return ("0"+x.toString(16)).slice(-2); }).join("");
+  return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+function isUuid(s){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s||"")); }
+function today(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function fmtDate(s){ if(!s) return ""; var p=s.split("-"); var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function r1(n){ return Math.round(n*10)/10; }
+
+/* strike = any part of the ball over the plate and within the zone (rulebook) */
+function isStrike(p, zb, zt){
+  return Math.abs(p.x) <= HALF_PL + BALL_R && p.z >= zb - BALL_R && p.z <= zt + BALL_R;
+}
+function missIn(p){
+  if(p.tx==null||p.tz==null) return null;
+  return Math.sqrt(Math.pow(p.x-p.tx,2)+Math.pow(p.z-p.tz,2))*12;
+}
+
+/* =======================================================================
+   State + storage (db when granted, in-memory sample otherwise)
+   ======================================================================= */
+var S = {
+  view:"pen", db:null, ready:false, local:false,
+  teams:[], pitchers:[], sessions:[],
+  teamId:null, pitcherId:null, sessionId:null,
+  pitchType:"FB", velo:"", carryVelo:true, armTarget:false,
+  target:null, selPitch:null,
+  aPitcher:"all", aRange:"all", aTypes:null,
+  persp:"catcher", picked:false,
+  unsub:[]
+};
+try{ var sp=localStorage.getItem("bpc.persp"); if(sp==="pitcher"||sp==="catcher") S.persp=sp; }catch(e){}
+
+function perspToggle(){
+  return '<div class="viewtog" role="radiogroup" aria-label="Charting view">'+
+    [["catcher","Catcher"],["pitcher","Pitcher"]].map(function(o){
+      return '<button role="radio" data-persp="'+o[0]+'" aria-checked="'+(S.persp===o[0])+'">'+o[1]+'</button>';
+    }).join("")+'</div>';
+}
+/* Describes a horizontal offset without saying "left" or "right", which would
+   mean opposite things in the two views. */
+function sideWord(x, hand){
+  if(Math.abs(x)<0.04) return "middle";
+  var armSideNeg = (hand||"R")==="R";   // stored frame: RHP arm side is negative x
+  return (x<0)===armSideNeg ? "arm side" : "glove side";
+}
+
+var SAMPLE_MARK = "Sample data — replace it from the Roster tab.";
+
+function seedLocal(){
+  var tid="demo-team", p1="demo-p1", p2="demo-p2";
+  S.teams = [{id:tid, name:"Sample 12U Squad", zoneBot:1.45, zoneTop:3.10, types:["FB","CH","CB"], sample:true}];
+  S.pitchers = [
+    {id:p1, teamId:tid, name:"A. Rivera", number:"11", throws:"R", sample:true},
+    {id:p2, teamId:tid, name:"J. Doyle",  number:"7",  throws:"L", sample:true}
+  ];
+  var pitches=[], seq=[["FB",-0.15,2.35,58],["FB",0.30,2.10,57],["CH",-0.45,1.75,49],["FB",0.62,2.95,59],
+    ["CB",0.05,1.40,44],["FB",-0.05,2.20,60],["CH",0.22,1.62,48],["FB",0.90,2.55,56],
+    ["CB",-0.30,1.20,45],["FB",-0.20,2.45,59],["CH",-0.60,2.05,47],["FB",0.10,2.62,58]];
+  seq.forEach(function(s,i){
+    pitches.push({n:i+1, type:s[0], x:s[1], z:s[2], velo:s[3],
+      tx:(i%3===0? -0.20:0.25), tz:(i%3===0? 2.30:1.90), ts:Date.now()-(seq.length-i)*40000});
+  });
+  S.sessions = [{id:"demo-s1", teamId:tid, pitcherId:p1, date:today(), label:"Sample side session",
+    notes:"", pitches:pitches, sample:true}];
+  S.teamId=tid; S.pitcherId=p1; S.sessionId="demo-s1";
+}
+
+/* --- persistence helpers ------------------------------------------------ */
+function dbTeam(id){ return S.db.doc("teams/"+id); }
+function dbPitcher(tid,id){ return S.db.doc("teams/"+tid+"/pitchers/"+id); }
+function dbSession(id){ return S.db.doc("sessions/"+id); }
+
+/* A write takes a moment to come back from the server. Until it does, the
+   local copy is the truth — otherwise the next snapshot deletes the thing you
+   just made (a brand-new session vanishing mid-bullpen is the worst version
+   of this). `inflight` protects unconfirmed writes; `tombstone` stops a
+   just-deleted record reappearing from a snapshot that predates the delete. */
+var inflight={}, tombstone={};
+function mark(id){ inflight[id]=(inflight[id]||0)+1; }
+function unmark(id){ if(inflight[id]){ inflight[id]--; if(!inflight[id]) delete inflight[id]; } }
+function track(id, promise){
+  mark(id);
+  var done=function(){ setTimeout(function(){ unmark(id); }, 1200); };
+  promise.then(done, function(e){ done(); dbErr(e); });
+}
+/* Remote list wins, except for records this device is still writing or has
+   just deleted. */
+function mergeList(local, incoming){
+  var byId={}, out=[];
+  incoming.forEach(function(x){ if(!tombstone[x.id]) byId[x.id]=x; });
+  incoming.forEach(function(x){ if(tombstone[x.id]===2) delete tombstone[x.id]; });
+  Object.keys(tombstone).forEach(function(k){
+    if(!incoming.some(function(x){return x.id===k;})) delete tombstone[k];
+    else if(tombstone[k]===1) tombstone[k]=2;
+  });
+  local.forEach(function(l){ if(inflight[l.id]){ out.push(l); delete byId[l.id]; } });
+  incoming.forEach(function(x){ if(byId[x.id]) out.push(byId[x.id]); });
+  return out;
+}
+
+function saveTeam(t){
+  if(SB) return sbSave("teams", sbTeamRow(t));
+  if(S.db){ var b=Object.assign({},t); delete b.id; track(t.id, dbTeam(t.id).set(b)); } persistLocal();
+}
+function savePitcher(p){
+  if(SB) return sbSave("pitchers", sbPitcherRow(p));
+  if(S.db){ var b=Object.assign({},p); delete b.id; track(p.id, dbPitcher(p.teamId,p.id).set(b)); } persistLocal();
+}
+function delTeam(t){
+  tombstone[t.id]=1;
+  if(SB) sbDelete("teams", t.id);
+  S.teams=S.teams.filter(function(x){return x.id!==t.id;});
+  S.pitchers=S.pitchers.filter(function(x){return x.teamId!==t.id;});
+  S.sessions=S.sessions.filter(function(x){return x.teamId!==t.id;});
+  if(S.db){ dbTeam(t.id).delete().catch(dbErr); }
+  if(S.teamId===t.id){ S.teamId=null; S.picked=false; S.pitcherId=null; S.sessionId=null;
+    try{ localStorage.removeItem("bpc.team"); }catch(_){} }
+  persistLocal(); render();
+}
+function delPitcher(p){
+  tombstone[p.id]=1;
+  if(SB) sbDelete("pitchers", p.id);
+  S.pitchers=S.pitchers.filter(function(x){return x.id!==p.id;});
+  if(S.db){ dbPitcher(p.teamId,p.id).delete().catch(dbErr); }
+  if(S.pitcherId===p.id){ S.pitcherId=null; S.sessionId=null; }
+  persistLocal(); render();
+}
+var saveTimers={};
+var sbSaveTimers={};
+function saveSession(sess, now){
+  if(SB){
+    var sid=sess.id;
+    clearTimeout(sbSaveTimers[sid]);
+    if(now){ sbSave("sessions", sbSessionRow(sess)); return; }
+    sbSaveTimers[sid]=setTimeout(function(){ delete sbSaveTimers[sid]; sbSave("sessions", sbSessionRow(sess)); }, 450);
+    return;
+  }
+  persistLocal();
+  if(!S.db) return;
+  var id=sess.id;
+  var write=function(){
+    delete saveTimers[id];
+    var b=Object.assign({},sess); delete b.id;
+    track(id, dbSession(id).set(b));
+  };
+  clearTimeout(saveTimers[id]);
+  if(now){ mark(id); write(); unmark(id); return; }
+  mark(id);                                  // held until the debounced write starts
+  saveTimers[id]=setTimeout(function(){ unmark(id); write(); }, 450);
+}
+function delSession(s){
+  tombstone[s.id]=1;
+  if(SB){ clearTimeout(sbSaveTimers[s.id]); sbDelete("sessions", s.id); }
+  clearTimeout(saveTimers[s.id]); delete saveTimers[s.id];
+  S.sessions=S.sessions.filter(function(x){return x.id!==s.id;});
+  if(S.db){ dbSession(s.id).delete().catch(dbErr); }
+  if(S.sessionId===s.id){ S.sessionId=null; rememberSession(); }
+  persistLocal(); render();
+}
+function persistLocal(){
+  if(S.db) return;
+  try{ localStorage.setItem("bpc.local", JSON.stringify({teams:S.teams,pitchers:S.pitchers,sessions:S.sessions})); }catch(e){}
+}
+function restoreLocal(){
+  try{
+    var raw=localStorage.getItem("bpc.local"); if(!raw) return false;
+    var d=JSON.parse(raw);
+    if(!d||!d.teams||!d.teams.length) return false;
+    S.teams=d.teams; S.pitchers=d.pitchers||[]; S.sessions=d.sessions||[];
+    S.teamId=S.teams[0].id; return true;
+  }catch(e){ return false; }
+}
+function dbErr(e){
+  var c=e&&e.code;
+  if(c==="quota_exceeded") flash("The database is full. Delete some old sessions from the Sessions tab to log more.");
+  else if(c==="revoked") flash("Saving is no longer available in this view. Copy anything you need with Export CSV.");
+  else if(c==="resource_exhausted") flash("Too many writes at once — the last change may not have saved. Try again in a moment.");
+  else flash("That change did not save. Check your connection and try again.");
+}
+var flashTimer=null;
+function flash(msg){
+  var n=document.getElementById("notice"), t=document.getElementById("noticetext");
+  t.textContent=msg; n.classList.remove("hidden");
+  clearTimeout(flashTimer); flashTimer=setTimeout(function(){ setBanner(); }, 9000);
+}
+function setBanner(){
+  var n=document.getElementById("notice"), t=document.getElementById("noticetext");
+  if(S.local){
+    t.innerHTML='<strong>Working offline.</strong> Shared saving is not available in this view, so pitches are kept in this browser only. Export CSV to keep a copy.';
+    n.classList.remove("hidden");
+  } else n.classList.add("hidden");
+}
+
+/* =======================================================================
+   Selectors
+   ======================================================================= */
+function team(){ return S.teams.filter(function(t){return t.id===S.teamId;})[0]||null; }
+function teamPitchers(){ return S.pitchers.filter(function(p){return p.teamId===S.teamId;})
+  .sort(function(a,b){return a.name.localeCompare(b.name);}); }
+function pitcher(id){ return S.pitchers.filter(function(p){return p.id===(id||S.pitcherId);})[0]||null; }
+function session(){ return S.sessions.filter(function(s){return s.id===S.sessionId;})[0]||null; }
+function teamSessions(){ return S.sessions.filter(function(s){return s.teamId===S.teamId;})
+  .sort(function(a,b){ return (b.date||"").localeCompare(a.date||"") || (b.id>a.id?1:-1); }); }
+function zoneOf(t){ t=t||team(); return {bot:(t&&t.zoneBot)||1.45, top:(t&&t.zoneTop)||3.10}; }
+function activeTypes(){ var t=team(); return (t&&t.types&&t.types.length)?t.types:["FB","CH","CB"]; }
+
+/* =======================================================================
+   Stats
+   ======================================================================= */
+function summarize(pitches, zb, zt){
+  var o={n:pitches.length, strikes:0, veloN:0, veloSum:0, veloMax:null, missN:0, missSum:0, within6:0};
+  pitches.forEach(function(p){
+    if(isStrike(p,zb,zt)) o.strikes++;
+    if(typeof p.velo==="number"&&p.velo>0){ o.veloN++; o.veloSum+=p.velo; if(o.veloMax==null||p.velo>o.veloMax) o.veloMax=p.velo; }
+    var m=missIn(p); if(m!=null){ o.missN++; o.missSum+=m; if(m<=6) o.within6++; }
+  });
+  o.strikePct = o.n? o.strikes/o.n*100 : null;
+  o.avgVelo   = o.veloN? o.veloSum/o.veloN : null;
+  o.avgMiss   = o.missN? o.missSum/o.missN : null;
+  o.cmdPct    = o.missN? o.within6/o.missN*100 : null;
+  return o;
+}
+
+/* =======================================================================
+   Zone drawing — SVG plot in real feet, catcher's view
+   ======================================================================= */
+var W=100, H=112;                     // svg user units for the plot box
+var PADL=13, PADR=7, PADT=7, PADB=13; // room for edge labels
+function sx(x){ return PADL + (x-VIEW.x0)/(VIEW.x1-VIEW.x0)*(W-PADL-PADR); }
+function sy(z){ return PADT + (VIEW.z1-z)/(VIEW.z1-VIEW.z0)*(H-PADT-PADB); }
+function invx(px){ return VIEW.x0 + (px-PADL)/(W-PADL-PADR)*(VIEW.x1-VIEW.x0); }
+function invz(py){ return VIEW.z1 - (py-PADT)/(H-PADT-PADB)*(VIEW.z1-VIEW.z0); }
+
+/* PERSPECTIVE.
+   Every pitch is STORED in one frame — catcher's view, x positive toward the
+   viewer's right, height in feet off the ground. Pitcher's view is the same
+   plate seen from the other side, so it is exactly a mirror: x -> -x, height
+   unchanged. Because the flip happens only where a person touches the screen
+   (input) and where a mark is painted (output), a session charted from behind
+   the mound and one charted from behind the catcher hold identical numbers and
+   merge with no conversion. The perspective is a property of where the COACH
+   is standing, not of the pitch, so it lives on the device, not in the data. */
+function flipped(){ return S.persp==="pitcher"; }
+function sxp(x){ return sx(flipped()? -x : x); }
+function invxp(px){ var x=invx(px); return flipped()? -x : x; }
+
+function zoneSVG(opts){
+  var zb=opts.bot, zt=opts.top, hand=opts.throws||"R";
+  var pitches=opts.pitches||[], showHeat=!!opts.heat;
+  // Catcher's view: a RHP faces us, so his arm side is on our left. From behind
+  // the mound we are looking the same way he is, so it swaps.
+  var armSideLeft = (hand==="R") !== flipped();
+  var x0=sx(-HALF_PL), x1=sx(HALF_PL), y1=sy(zb), y0=sy(zt);
+  // Dashed line = the actual strike boundary: a ball whose CENTER is inside it
+  // still clips the zone, so it is called a strike. Drawing it at exactly the
+  // rule makes the call visible instead of something to guess at.
+  var sh0x=sx(-HALF_PL-BALL_R), sh1x=sx(HALF_PL+BALL_R), shy1=sy(zb-BALL_R), shy0=sy(zt+BALL_R);
+  var o=[];
+  o.push('<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Strike zone, catcher\'s view">');
+  // Tap surface goes UNDER the marks so a pointer can grab a dot to move it.
+  o.push('<rect class="zone-hit" x="0" y="0" width="'+W+'" height="'+H+'" fill="transparent"/>');
+  o.push('<rect x="'+sh0x+'" y="'+shy0+'" width="'+(sh1x-sh0x)+'" height="'+(shy1-shy0)+
+    '" fill="none" stroke="var(--shadow-line)" stroke-width="0.5" stroke-dasharray="1.6 1.6" rx="0.6"/>');
+  // zone + thirds
+  o.push('<rect x="'+x0+'" y="'+y0+'" width="'+(x1-x0)+'" height="'+(y1-y0)+
+    '" fill="var(--zone-fill)" stroke="var(--zone-line)" stroke-width="0.85"/>');
+  for(var i=1;i<3;i++){
+    var gx=x0+(x1-x0)*i/3, gy=y0+(y1-y0)*i/3;
+    o.push('<line x1="'+gx+'" y1="'+y0+'" x2="'+gx+'" y2="'+y1+'" stroke="var(--zone-line)" stroke-width="0.32" opacity="0.5"/>');
+    o.push('<line x1="'+x0+'" y1="'+gy+'" x2="'+x1+'" y2="'+gy+'" stroke="var(--zone-line)" stroke-width="0.32" opacity="0.5"/>');
+  }
+  // home plate in perspective, below the zone
+  var py=sy(0.30), pw=(x1-x0)/2, cx=(x0+x1)/2;
+  o.push('<path d="M '+(cx-pw)+' '+py+' L '+(cx+pw)+' '+py+' L '+(cx+pw*0.78)+' '+(py+3.4)+
+    ' L '+cx+' '+(py+5.6)+' L '+(cx-pw*0.78)+' '+(py+3.4)+' Z" fill="var(--plate)" stroke="var(--line2)" stroke-width="0.4"/>');
+  o.push('<text x="'+cx+'" y="'+(py+9.6)+'" text-anchor="middle" class="sidelabel">17 in plate &#183; '+
+    (flipped()? 'pitcher&#8217;s view' : 'catcher&#8217;s view')+'</text>');
+  // height ticks
+  [1,2,3,4].forEach(function(ft){
+    var yy=sy(ft);
+    o.push('<line x1="'+(PADL-2.4)+'" y1="'+yy+'" x2="'+(PADL-0.6)+'" y2="'+yy+'" stroke="var(--line2)" stroke-width="0.4"/>');
+    o.push('<text x="'+(PADL-3.4)+'" y="'+(yy+1.6)+'" text-anchor="end" class="zonetick">'+ft+"'"+'</text>');
+  });
+  // arm / glove side labels
+  o.push('<text x="'+(PADL+1)+'" y="'+(PADT+3)+'" class="sidelabel">'+(armSideLeft?"Arm side":"Glove side")+'</text>');
+  o.push('<text x="'+(W-PADR-1)+'" y="'+(PADT+3)+'" text-anchor="end" class="sidelabel">'+(armSideLeft?"Glove side":"Arm side")+'</text>');
+  // target crosshair
+  if(opts.target){
+    var tx=sxp(opts.target.x), tz=sy(opts.target.z);
+    o.push('<g opacity="0.95"><circle cx="'+tx+'" cy="'+tz+'" r="3.4" fill="none" stroke="var(--accent)" stroke-width="0.7" stroke-dasharray="1.4 1.2"/>'+
+      '<line x1="'+(tx-5)+'" y1="'+tz+'" x2="'+(tx+5)+'" y2="'+tz+'" stroke="var(--accent)" stroke-width="0.5"/>'+
+      '<line x1="'+tx+'" y1="'+(tz-5)+'" x2="'+tx+'" y2="'+(tz+5)+'" stroke="var(--accent)" stroke-width="0.5"/>'+
+      '<text x="'+tx+'" y="'+(tz-6.2)+'" text-anchor="middle" class="sidelabel" style="fill:var(--accent)">Mitt</text></g>');
+  }
+  // miss lines for the selected pitch
+  pitches.forEach(function(p){
+    if(p.__sel && p.tx!=null){
+      o.push('<line x1="'+sxp(p.tx)+'" y1="'+sy(p.tz)+'" x2="'+sxp(p.x)+'" y2="'+sy(p.z)+
+        '" stroke="var(--ink3)" stroke-width="0.45" stroke-dasharray="1.2 1"/>');
+    }
+  });
+  // Pitch marks: shape carries the call, hue carries the pitch type.
+  // Strike = solid disc. Ball = ring on a surface-colored fill, so it stays
+  // readable in both themes and on top of the heat map.
+  pitches.forEach(function(p){
+    var c=ptColor(p.type), st=isStrike(p,zb,zt), rr=2.5;
+    var mx=sxp(p.x), my=sy(p.z);
+    o.push('<g class="mark" data-i="'+p.n+'">');
+    if(p.__sel) o.push('<circle class="selring" cx="'+mx+'" cy="'+my+'" r="4.3"/>');
+    o.push('<circle class="dot'+(st?"":" ball-open")+'" data-i="'+p.n+'" cx="'+mx+'" cy="'+my+
+      '" r="'+rr+'" style="'+(st? 'fill:'+c+';stroke:var(--surf)' : 'fill:var(--surf);stroke:'+c)+'"/>');
+    // Fingers are bigger than the mark — a generous invisible grab target.
+    if(opts.grab) o.push('<circle class="grabpad" data-i="'+p.n+'" cx="'+mx+'" cy="'+my+'" r="5.4"/>');
+    o.push('</g>');
+  });
+  o.push('</svg>');
+  return o.join("");
+}
+
+/* Kernel-density heat map painted under the zone lines */
+function paintHeat(canvas, pitches){
+  if(!canvas) return;
+  var box=canvas.getBoundingClientRect();
+  var cw=Math.max(60,Math.round(box.width)), ch=Math.max(60,Math.round(box.height));
+  var dpr=Math.min(2, window.devicePixelRatio||1);
+  canvas.width=cw*dpr; canvas.height=ch*dpr;
+  var ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!pitches.length) return;
+  var GX=64, GY=72, grid=new Float32Array(GX*GY), max=0;
+  var bw=0.24; // bandwidth in feet — about one baseball plus a little
+  var fl=flipped();
+  var pts=pitches.map(function(p){ return [fl? -p.x : p.x, p.z]; });
+  for(var j=0;j<GY;j++){
+    var gz = VIEW.z1 - (j+0.5)/GY*(VIEW.z1-VIEW.z0);
+    for(var i=0;i<GX;i++){
+      var gx = VIEW.x0 + (i+0.5)/GX*(VIEW.x1-VIEW.x0), s=0;
+      for(var k=0;k<pts.length;k++){
+        var dx=(gx-pts[k][0])/bw, dz=(gz-pts[k][1])/bw, d2=dx*dx+dz*dz;
+        if(d2<9) s+=Math.exp(-0.5*d2);
+      }
+      grid[j*GX+i]=s; if(s>max) max=s;
+    }
+  }
+  if(max<=0) return;
+  // Paint the field into a low-res buffer, then let the browser scale it
+  // smoothly — drawing cells directly leaves visible alpha seams.
+  var rgb=(cssv("--heat")||"178,58,43").split(",").map(Number);
+  var off=document.createElement("canvas"); off.width=GX; off.height=GY;
+  var octx=off.getContext("2d"), img=octx.createImageData(GX,GY), d=img.data;
+  for(var n=0;n<GX*GY;n++){
+    var v=grid[n]/max;
+    v = v<0.05 ? 0 : Math.pow(v,0.75);
+    d[n*4]=rgb[0]; d[n*4+1]=rgb[1]; d[n*4+2]=rgb[2]; d[n*4+3]=Math.round(v*185);
+  }
+  octx.putImageData(img,0,0);
+  var lx=PADL/W*canvas.width, rx=(W-PADR)/W*canvas.width;
+  var ty=PADT/H*canvas.height, by=(H-PADB)/H*canvas.height;
+  ctx.save(); ctx.beginPath(); ctx.rect(lx,ty,rx-lx,by-ty); ctx.clip();
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+  ctx.drawImage(off,0,0,GX,GY,0,0,canvas.width,canvas.height);
+  ctx.restore();
+}
+
+/* =======================================================================
+   Views
+   ======================================================================= */
+function render(){
+  // A snapshot from another coach (or our own save) must not rebuild the DOM
+  // out from under a finger that is mid-drag — it would detach the mark being
+  // moved and silently drop the gesture. Defer to the end of the drag.
+  if(S.dragging){ S.renderPending=true; return; }
+  S.renderPending=false;
+  var app=document.getElementById("app");
+  Array.prototype.forEach.call(document.querySelectorAll("#tabs .tab"), function(b){
+    b.setAttribute("aria-current", b.dataset.view===S.view ? "true":"false");
+  });
+  var tabs=document.getElementById("tabs");
+  if(SB && !S.authed){
+    tabs.classList.add("hidden");
+    app.innerHTML = S.sentTo ? viewSent() : viewSignIn();
+    var f=document.getElementById("signinForm");
+    if(f) f.addEventListener("submit", function(e){
+      e.preventDefault();
+      var v=document.getElementById("signinEmail").value.trim();
+      if(v) sbSendLink(v);
+    });
+    return;
+  }
+  if(!S.ready){ tabs.classList.add("hidden");
+    app.innerHTML='<div class="panel pad empty" style="margin-top:24px">Loading your teams…</div>'; return; }
+  if(!S.picked && S.teams.length){ tabs.classList.add("hidden"); app.innerHTML=viewPicker(); afterRender(); return; }
+  tabs.classList.remove("hidden");
+  if(S.view==="pen") app.innerHTML=viewPen();
+  else if(S.view==="sessions") app.innerHTML=viewSessions();
+  else if(S.view==="analytics") app.innerHTML=viewAnalytics();
+  else app.innerHTML=viewRoster();
+  afterRender();
+}
+
+/* The team is chosen once, on the way in, and scopes everything after it.
+   This is scoping, not access control — anyone who can open the page can
+   switch teams. It exists so a coach sees only their own club's work. */
+function selTeamHTML(){
+  var t=team();
+  return '<div class="who"><span class="eyebrow">Team</span><b>'+esc(t?t.name:"—")+'</b></div>'+
+    '<button class="btn btn-sm btn-ghost" data-act="switchteam">Switch</button>';
+}
+/* An iPad reloads background tabs on its own, and a bullpen can sit idle
+   between arms. Remember which session is open so a reload drops the coach
+   back into it rather than at "Start bullpen". */
+function rememberSession(){
+  try{ localStorage.setItem("bpc.session", S.sessionId||""); }catch(e){}
+}
+function restoreSession(){
+  if(!S.picked || S.sessionId) return;
+  var id=null; try{ id=localStorage.getItem("bpc.session"); }catch(e){}
+  if(!id) return;
+  var s=S.sessions.filter(function(x){ return x.id===id && x.teamId===S.teamId; })[0];
+  if(s){ S.sessionId=s.id; S.pitcherId=s.pitcherId; }
+}
+function pickTeam(id, remember){
+  S.teamId=id; S.picked=true; S.pitcherId=null; S.sessionId=null; S.selPitch=null; S.aPitcher="all";
+  if(remember!==false){ try{ localStorage.setItem("bpc.team", id); }catch(e){} }
+  if(SB){ S.staff=null; sbLoadTeam(id); sbSubscribe(id); sbLoadStaff(id); return; }
+  subscribeTeam();
+}
+function viewPicker(){
+  return '<div class="pickwrap">'+
+    '<h1 class="pickhead">Which team are you charting?</h1>'+
+    '<p class="picksub">Pick one to open its roster and bullpen history. You can switch any time.</p>'+
+    '<div class="pickgrid">'+ S.teams.map(function(t){
+      var n=S.sessions.filter(function(s){return s.teamId===t.id;}).length;
+      return '<button class="teamcard" data-act="pickgo" data-id="'+t.id+'">'+
+        '<span class="tc-name">'+esc(t.name)+(t.sample?' <span class="pill b">sample</span>':'')+'</span>'+
+        '<span class="tc-meta">Strike zone '+r1((t.zoneBot||1.45)*12)+'–'+r1((t.zoneTop||3.1)*12)+' in'+
+          ' · '+(t.types||["FB","CH","CB"]).length+' pitch types'+(n?' · '+n+' session'+(n===1?'':'s'):'')+'</span>'+
+      '</button>';
+    }).join("")+'</div>'+
+    '<button class="btn btn-sm btn-ghost" data-act="addteam" style="margin-top:16px">Add another team</button>'+
+  '</div>';
+}
+
+/* ---------- PEN ---------- */
+function viewPen(){
+  if(!S.teams.length){
+    return '<div class="panel pad stack" style="margin-top:24px"><h2 style="font-size:22px">Add your first team</h2>'+
+      '<p class="inline-note" style="max-width:54ch;font-size:14px">A team holds its roster, its strike-zone height, and the pitch types your staff throws. Two taps and you can start charting.</p>'+
+      '<div class="row"><button class="btn btn-primary" data-act="addteam">Add team</button>'+
+      '<button class="btn" data-act="goroster">Open Roster</button></div></div>';
+  }
+  var t=team(), ps=teamPitchers(), z=zoneOf(t), sess=session(), pit=pitcher();
+  var head='<div class="sessionbar">'+selTeamHTML()+
+    '<label class="fld"><span>Pitcher</span><select id="selPitcher">'+
+      (ps.length? '' : '<option value="">No pitchers yet</option>')+
+      ps.map(function(p){ return '<option value="'+p.id+'"'+(p.id===S.pitcherId?' selected':'')+'>'+
+        esc(p.name)+(p.number?" #"+esc(p.number):"")+' ('+esc(p.throws||"R")+'HP)</option>'; }).join("")+
+    '</select></label>';
+
+  if(sess && sess.pitcherId===S.pitcherId){
+    head += '<div class="who grow"><span class="eyebrow">Active session</span><b>'+esc(sess.label||"Bullpen")+'</b>'+
+      '<span class="dim">'+fmtDate(sess.date)+' · '+sess.pitches.length+' pitches logged</span></div>'+
+      '<button class="btn" data-act="endsess">Finish session</button>';
+  } else {
+    head += '<div class="grow"></div><button class="btn btn-primary" data-act="newsess"'+(ps.length?'':' disabled')+'>Start bullpen</button>';
+  }
+  head += '</div>';
+
+  if(!sess || sess.pitcherId!==S.pitcherId){
+    var prev = S.sessions.filter(function(s){return s.pitcherId===S.pitcherId;})
+      .sort(function(a,b){return (b.date||"").localeCompare(a.date||"");})[0];
+    if(!ps.length){
+      return head + '<div class="panel pad stack" style="margin-top:18px">'+
+        '<h2 style="font-size:20px">No pitchers on '+esc(t.name)+' yet</h2>'+
+        '<p class="inline-note" style="max-width:54ch;font-size:14px">Add the arms you want to chart. Name, number and throwing hand — the throwing hand is what flips the arm-side and glove-side labels on the zone.</p>'+
+        '<div class="row"><button class="btn btn-primary" data-act="addpitcher">Add pitcher</button></div></div>';
+    }
+    return head + '<div class="panel pad empty" style="margin-top:18px">'+
+      (pit? 'Ready to chart <b>'+esc(pit.name)+'</b>. Hit <b>Start bullpen</b> to open a new session'+
+        (prev? ', or reopen '+esc(prev.label||"the last one")+' from the Sessions tab.':'.') : 'Pick a pitcher to start charting.')+
+      '</div>';
+  }
+
+  var pitches=sess.pitches.map(function(p){ return Object.assign({}, p, {__sel:p.n===S.selPitch}); });
+  var sum=summarize(sess.pitches, z.bot, z.top);
+  var types=activeTypes();
+
+  // Sticky bar: pitch type, velo and the target toggle — everything that
+  // decides what the next tap records, kept beside the zone.
+  var chartBar =
+    '<div class="chartbar">'+
+      '<div class="ptrow" role="radiogroup" aria-label="Pitch type">'+ types.map(function(code,i){
+        var on=S.pitchType===code;
+        return '<button class="ptchip" role="radio" data-pt="'+code+'" aria-checked="'+on+'">'+
+          '<span class="swatch" style="background:'+ptColor(code)+';color:'+ptColor(code)+'"></span>'+
+          esc(PT[code].label)+'<kbd>'+(i+1)+'</kbd></button>';
+      }).join("")+'</div>'+
+      '<button class="btn btn-sm'+(S.armTarget?' btn-primary':'')+'" data-act="armt" '+
+        'title="Mark where the catcher sets up. Each pitch is then scored by how many inches it missed by.">'+
+        (S.armTarget?'Tap the mitt…':(S.target?'Move the mitt':'Set the mitt'))+'</button>'+
+      '<div class="cbvelo">'+
+        '<button data-act="v-" aria-label="Velo down 1">&minus;</button>'+
+        '<input type="number" id="velo" inputmode="numeric" min="20" max="110" step="1" value="'+esc(S.velo)+'" placeholder="—" aria-label="Velo in mph">'+
+        '<button data-act="v+" aria-label="Velo up 1">+</button>'+
+        '<span class="unit">mph</span>'+
+      '</div>'+
+    '</div>';
+
+  var entryPanel =
+    '<div class="panel pad rail a-entry">'+
+      '<div><div class="eyebrow" style="margin-bottom:6px">Mitt &amp; command</div>'+
+      '<p class="inline-note" style="margin:0">'+
+        (S.target? 'Set '+Math.abs(r1(S.target.x*12))+' in '+esc(sideWord(S.target.x, pit?pit.throws:"R"))+
+          ' of center, '+r1(S.target.z*12)+' in off the ground. Each pitch is scored by how far it missed it.'
+                 : 'Optional. Mark where the catcher sets up and every pitch gets a miss distance in inches — '+
+                   'that is what turns "he threw strikes" into "he hit his spots".')+
+      '</p>'+
+      (S.target? '<button class="btn btn-sm btn-ghost" data-act="cleart" style="margin-top:8px">Clear the mitt</button>':'')+
+      '</div>'+
+
+      '<label class="row" style="gap:7px;font-size:13px;color:var(--ink2);border-top:1px solid var(--line);padding-top:11px">'+
+      '<input type="checkbox" id="carry"'+(S.carryVelo?' checked':'')+'> Keep velo for the next pitch</label>'+
+
+      '<div class="row" style="border-top:1px solid var(--line);padding-top:11px">'+
+        '<button class="btn" data-act="undo"'+(sess.pitches.length?'':' disabled')+'>Undo last</button>'+
+        '<button class="btn btn-sm btn-ghost grow" data-act="exportsess">Export CSV</button>'+
+      '</div>'+
+    '</div>';
+
+  var logPanel =
+    '<div class="panel a-log"><div class="row" style="padding:11px 14px 9px"><span class="eyebrow grow">Pitch log</span>'+
+      '<span class="dim num">'+sess.pitches.length+'</span></div>'+
+      '<div class="log">'+ (sess.pitches.length? sess.pitches.slice().reverse().map(function(p){
+        var m=missIn(p), st=isStrike(p,z.bot,z.top);
+        return '<button class="logrow" data-pn="'+p.n+'" aria-selected="'+(p.n===S.selPitch)+'">'+
+          '<span class="n">'+p.n+'</span>'+
+          '<span class="chip" style="border-color:'+ptColor(p.type)+'"><span class="swatch" style="background:'+ptColor(p.type)+'"></span>'+esc(p.type)+'</span>'+
+          '<span class="num muted">'+(p.velo? p.velo+' mph':'—')+'</span>'+
+          '<span>'+(m!=null? '<span class="num muted">'+r1(m)+'&quot;</span> ':'')+'<span class="pill '+(st?'s':'b')+'">'+(st?'Strike':'Ball')+'</span></span>'+
+          '<span class="btn-ghost" data-del="'+p.n+'" title="Delete pitch" style="text-align:center">×</span>'+
+        '</button>';
+      }).join("") : '<div class="empty">No pitches yet. Tap the zone where the ball crossed.</div>')+
+      '</div></div>';
+
+  var tiles='<div class="tiles" style="margin-top:18px">'+
+    tile(sum.n, "Pitches", sess.pitches.length? "this session":"tap the zone to start")+
+    tile(sum.strikePct==null?"—":Math.round(sum.strikePct)+"%", "Strike rate", sum.strikes+" of "+sum.n+" in the zone")+
+    tile(sum.avgVelo==null?"—":r1(sum.avgVelo), "Avg velo", sum.veloMax==null? "no velo logged":"top "+r1(sum.veloMax)+" mph")+
+    tile(sum.avgMiss==null?"—":r1(sum.avgMiss)+'"', "Avg miss", sum.cmdPct==null? "set the mitt to score command":Math.round(sum.cmdPct)+"% within 6 in of the mitt")+
+  '</div>';
+
+  return head + tiles +
+    '<div class="pen">'+
+      '<div class="panel pad a-zone'+(S.armTarget?' armed':'')+'">'+
+        chartBar +
+        '<div class="row" style="margin-bottom:10px"><span class="eyebrow grow">'+
+          esc(pit?pit.name:"")+' · '+(pit&&pit.throws==="L"?"LHP":"RHP")+' · zone '+r1(z.bot*12)+'–'+r1(z.top*12)+' in</span>'+
+          perspToggle()+
+          '<label class="row" style="gap:5px;font-size:12.5px;color:var(--ink2)"><input type="checkbox" id="heat"'+(S.heat?' checked':'')+'> Heat map</label>'+
+        '</div>'+
+        editStrip(sess, z, types) +
+        '<div class="taphint">'+(S.armTarget
+          ? '<b>Tap where the catcher sets up.</b> The mitt stays put until you move it, and every pitch after '+
+            'that is scored by how many inches it missed it by. That is the command number.'
+          : 'Tap where the ball crossed the plate to log a <b>'+esc(PT[S.pitchType].label.toLowerCase())+'</b>'+
+            (S.velo? ' at <b>'+esc(S.velo)+' mph</b>':'')+
+            '. Anywhere in the box works, even on top of an old dot. To move a logged pitch, '+
+            '<b>press and hold</b> its dot, then drag.')+'</div>'+
+        '<div class="zonewrap" id="zonewrap"><canvas id="heatc"></canvas>'+
+          zoneSVG({bot:z.bot, top:z.top, throws:pit?pit.throws:"R", pitches:pitches, target:S.target, grab:true})+
+        '</div>'+
+        legendHTML(types)+
+      '</div>'+
+      entryPanel + logPanel +
+    '</div>';
+}
+function editStrip(sess, z, types){
+  var p = S.selPitch==null ? null : sess.pitches.filter(function(q){return q.n===S.selPitch;})[0];
+  if(!p) return "";
+  var m=missIn(p);
+  return '<div class="editbar">'+
+    '<span class="who">Pitch #'+p.n+'</span>'+
+    '<select id="editType" aria-label="Pitch type">'+
+      types.concat(types.indexOf(p.type)<0?[p.type]:[]).map(function(c){
+        return '<option value="'+c+'"'+(c===p.type?' selected':'')+'>'+esc((PT[c]||PT.OT).label)+'</option>'; }).join("")+
+    '</select>'+
+    '<input type="number" id="editVelo" min="20" max="110" step="1" placeholder="mph" aria-label="Velo in mph" value="'+
+      (p.velo==null?"":p.velo)+'">'+
+    '<span class="dim">'+(isStrike(p,z.bot,z.top)?"Strike":"Ball")+
+      (m!=null? ' · '+r1(m)+' in off the mitt':'')+'</span>'+
+    '<span class="sp">'+
+      '<button class="btn btn-sm btn-ghost btn-danger" data-act="delpitch">Delete</button>'+
+      '<button class="btn btn-sm" data-act="doneedit">Done</button>'+
+    '</span>'+
+  '</div>';
+}
+function tile(v,l,s){ return '<div class="tile"><b>'+v+'</b><span class="eyebrow">'+l+'</span><small>'+esc(s)+'</small></div>'; }
+function legendHTML(types){
+  return '<div class="legend" style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line)">'+
+    types.map(function(c){ return '<span class="k"><span class="swatch" style="background:'+ptColor(c)+'"></span>'+esc(PT[c].label)+'</span>'; }).join("")+
+    '<span class="k" style="margin-left:auto"><svg width="13" height="13"><circle cx="6.5" cy="6.5" r="4.6" fill="var(--ink3)"/></svg>Strike</span>'+
+    '<span class="k"><svg width="13" height="13"><circle cx="6.5" cy="6.5" r="4.2" fill="var(--surf)" stroke="var(--ink3)" stroke-width="2"/></svg>Ball</span>'+
+    '</div>'+
+    '<p class="inline-note" style="margin:8px 0 0">Solid box is the rulebook zone. Dashed box is half a ball wider — a pitch inside it still clips the zone, so it counts as a strike.</p>';
+}
+
+/* ---------- SESSIONS ---------- */
+function viewSessions(){
+  if(!S.teams.length) return '<div class="panel pad empty" style="margin-top:24px">Add a team on the Roster tab first.</div>';
+  var z=zoneOf(), list=teamSessions();
+  return '<div class="sessionbar">'+selTeamHTML()+'<div class="grow"></div>'+
+    '<button class="btn btn-sm btn-ghost" data-act="exportall">Export every session (CSV)</button></div>'+
+    '<div class="sechead"><h2>Bullpen history</h2><span class="dim">'+list.length+' session'+(list.length===1?'':'s')+'</span></div>'+
+    '<div class="panel card-list">'+ (list.length? list.map(function(s){
+      var p=pitcher(s.pitcherId), sum=summarize(s.pitches, z.bot, z.top);
+      return '<div class="sess">'+
+        '<div><div class="sess-t">'+esc(p?p.name:"Unknown pitcher")+'</div>'+
+        '<div class="dim">'+fmtDate(s.date)+(s.label?' · '+esc(s.label):'')+'</div></div>'+
+        '<div class="dim num" style="text-align:right;line-height:1.35">'+sum.n+' pitches<br>'+
+          (sum.strikePct==null?'—':Math.round(sum.strikePct)+'% strikes')+
+          (sum.avgMiss==null?'':' · '+r1(sum.avgMiss)+'&quot; miss')+'</div>'+
+        '<div class="row" style="gap:6px;flex-wrap:nowrap">'+
+          '<button class="btn btn-sm" data-act="open" data-id="'+s.id+'">Open</button>'+
+          '<button class="btn btn-sm btn-ghost" data-act="expone" data-id="'+s.id+'">CSV</button>'+
+          '<button class="btn btn-sm btn-ghost btn-danger" data-act="delsess" data-id="'+s.id+'">Delete</button>'+
+        '</div></div>';
+    }).join("") : '<div class="empty">No sessions for this team yet.</div>')+'</div>';
+}
+
+/* ---------- ANALYTICS ---------- */
+/* Counted in bullpens, not days — a pitcher who threw four pens in three weeks
+   and one who threw four in three months are both "his last four". Empty
+   sessions never consume a slot. The pitcher filter applies BEFORE the count,
+   so "last 5" means his last 5, not the team's. */
+function analyticsSessions(){
+  var list=teamSessions().filter(function(s){
+    if(S.aPitcher!=="all" && s.pitcherId!==S.aPitcher) return false;
+    return (s.pitches||[]).length>0;
+  });
+  if(S.aRange!=="all") list=list.slice(0, parseInt(S.aRange,10));
+  return list;                                  // newest first
+}
+function analyticsPitches(){
+  var z=zoneOf(), out=[];
+  analyticsSessions().forEach(function(s){
+    s.pitches.forEach(function(p){
+      if(S.aTypes && S.aTypes.indexOf(p.type)<0) return;
+      out.push(Object.assign({}, p, {sessionId:s.id, date:s.date, pitcherId:s.pitcherId}));
+    });
+  });
+  return {pitches:out, z:z};
+}
+function viewAnalytics(){
+  if(!S.teams.length) return '<div class="panel pad empty" style="margin-top:24px">Add a team on the Roster tab first.</div>';
+  var ps=teamPitchers(), r=analyticsPitches(), z=r.z, all=r.pitches;
+  var sessList=analyticsSessions(), nSess=sessList.length;
+  var span = nSess ? (nSess===1 ? fmtDate(sessList[0].date)
+              : fmtDate(sessList[nSess-1].date)+" – "+fmtDate(sessList[0].date)) : "";
+  var sum=summarize(all,z.bot,z.top);
+  var types=activeTypes();
+  var handed = S.aPitcher==="all" ? "R" : ((pitcher(S.aPitcher)||{}).throws||"R");
+
+  var filters='<div class="sessionbar">'+selTeamHTML()+
+    '<label class="fld"><span>Pitcher</span><select id="aPitcher"><option value="all"'+(S.aPitcher==="all"?" selected":"")+'>All pitchers</option>'+
+      ps.map(function(p){return '<option value="'+p.id+'"'+(S.aPitcher===p.id?" selected":"")+'>'+esc(p.name)+'</option>';}).join("")+
+    '</select></label>'+
+    '<label class="fld"><span>Bullpens</span><select id="aRange">'+
+      [["all","All bullpens"],["3","Last 3"],["5","Last 5"],["10","Last 10"],["15","Last 15"]].map(function(o){
+        return '<option value="'+o[0]+'"'+(S.aRange===o[0]?" selected":"")+'>'+o[1]+'</option>';}).join("")+
+    '</select></label>'+
+    '<div class="grow"></div>'+perspToggle()+
+    '<span class="dim num">'+all.length+' pitches · '+nSess+' bullpen'+(nSess===1?'':'s')+'</span></div>';
+
+  var tiles='<div class="tiles" style="margin-top:18px">'+
+    tile(sum.n,"Pitches", span||"nothing logged yet")+
+    tile(sum.strikePct==null?"—":Math.round(sum.strikePct)+"%","Strike rate","rulebook zone + ball width")+
+    tile(sum.avgVelo==null?"—":r1(sum.avgVelo),"Avg velo",sum.veloMax==null?"no velo logged":"top "+r1(sum.veloMax)+" mph")+
+    tile(sum.avgMiss==null?"—":r1(sum.avgMiss)+'"',"Avg miss",sum.missN?"over "+sum.missN+" pitches with a mitt set":"no mitt set on these bullpens")+
+  '</div>';
+
+  var rows=types.map(function(c){
+    var sub=all.filter(function(p){return p.type===c;});
+    if(!sub.length) return null;
+    var s2=summarize(sub,z.bot,z.top);
+    return '<tr><td><span class="chip" style="border-color:'+ptColor(c)+'"><span class="swatch" style="background:'+ptColor(c)+'"></span>'+esc(PT[c].label)+'</span></td>'+
+      '<td class="num">'+s2.n+'</td><td class="num">'+Math.round(s2.n/all.length*100)+'%</td>'+
+      '<td class="num">'+(s2.strikePct==null?"—":Math.round(s2.strikePct)+"%")+'</td>'+
+      '<td class="num">'+(s2.avgVelo==null?"—":r1(s2.avgVelo))+'</td>'+
+      '<td class="num">'+(s2.veloMax==null?"—":r1(s2.veloMax))+'</td>'+
+      '<td class="num">'+(s2.avgMiss==null?"—":r1(s2.avgMiss)+'"')+'</td></tr>';
+  }).filter(Boolean).join("");
+
+  return filters + tiles +
+    '<div class="grid2" style="margin-top:18px">'+
+      '<div class="panel pad"><div class="eyebrow" style="margin-bottom:9px">Where the ball ends up</div>'+
+        '<div class="zonewrap" id="zonewrapA"><canvas id="heatcA"></canvas>'+
+        zoneSVG({bot:z.bot,top:z.top,throws:handed,pitches:[]})+'</div>'+
+        '<p class="inline-note" style="margin-top:10px">Density of all '+all.length+' pitches across these '+
+        nSess+' bullpen'+(nSess===1?'':'s')+', however each was charted. Darker means more pitches finished there.</p></div>'+
+      '<div class="panel pad"><div class="eyebrow" style="margin-bottom:9px">Every pitch by type</div>'+
+        '<div class="zonewrap" id="zonewrapB">'+
+        zoneSVG({bot:z.bot,top:z.top,throws:handed,pitches:all.map(function(p,i){return Object.assign({},p,{n:i+1});})})+'</div>'+
+        legendHTML(types)+'</div>'+
+    '</div>'+
+    '<div class="sechead"><h2>By pitch type</h2></div>'+
+    '<div class="panel"><div class="tblwrap"><table><thead><tr><th>Pitch</th><th>Count</th><th>Usage</th><th>Strike %</th><th>Avg velo</th><th>Top velo</th><th>Avg miss</th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Nothing logged in these bullpens yet.</td></tr>')+'</tbody></table></div></div>';
+}
+
+/* ---------- ROSTER ---------- */
+function viewRoster(){
+  var t=team(), z=zoneOf(t), types=activeTypes();
+  var teamCards = S.teams.map(function(x){
+    return '<div class="sess"><div><div class="sess-t">'+esc(x.name)+(x.sample?' <span class="pill b">sample</span>':'')+'</div>'+
+      '<div class="dim">'+S.pitchers.filter(function(p){return p.teamId===x.id;}).length+' pitchers · zone '+
+      r1((x.zoneBot||1.45)*12)+'–'+r1((x.zoneTop||3.1)*12)+' in</div></div><div></div>'+
+      '<div class="row" style="gap:6px;flex-wrap:nowrap">'+
+      (x.id===S.teamId?'<span class="pill s">selected</span>':'<button class="btn btn-sm" data-act="pickteam" data-id="'+x.id+'">Select</button>')+
+      '<button class="btn btn-sm btn-ghost" data-act="renteam" data-id="'+x.id+'">Rename</button>'+
+      '<button class="btn btn-sm btn-ghost btn-danger" data-act="delteam" data-id="'+x.id+'">Delete</button></div></div>';
+  }).join("");
+
+  var roster = !t ? '' :
+    '<div class="sechead"><h2>'+esc(t.name)+' roster</h2>'+
+      '<div class="grow"></div><button class="btn btn-sm btn-primary" data-act="addpitcher">Add pitcher</button></div>'+
+    '<div class="panel card-list">'+ (teamPitchers().length? teamPitchers().map(function(p){
+      var n=S.sessions.filter(function(s){return s.pitcherId===p.id;}).length;
+      return '<div class="sess"><div><div class="sess-t">'+esc(p.name)+'</div>'+
+        '<div class="dim">'+(p.number?'#'+esc(p.number)+' · ':'')+(p.throws==="L"?"Throws left":"Throws right")+' · '+n+' session'+(n===1?'':'s')+'</div></div><div></div>'+
+        '<div class="row" style="gap:6px;flex-wrap:nowrap">'+
+        '<button class="btn btn-sm btn-ghost" data-act="editpitcher" data-id="'+p.id+'">Edit</button>'+
+        '<button class="btn btn-sm btn-ghost btn-danger" data-act="delpitcher" data-id="'+p.id+'">Remove</button></div></div>';
+    }).join("") : '<div class="empty">No pitchers on this team yet.</div>')+'</div>'+
+
+    '<div class="sechead"><h2>'+esc(t.name)+' settings</h2></div>'+
+    '<div class="grid2">'+
+      '<div class="panel pad stack"><div class="eyebrow">Strike zone height</div>'+
+        '<p class="inline-note">Measured from the ground to the knees and the letters. Every strike call and heat map on this team uses it.</p>'+
+        '<div class="row">'+ZONE_PRESETS.map(function(p){
+          var on = Math.abs(z.bot-p.bot)<0.01 && Math.abs(z.top-p.top)<0.01;
+          return '<button class="btn btn-sm'+(on?' btn-primary':'')+'" data-act="zpreset" data-bot="'+p.bot+'" data-top="'+p.top+'">'+p.name+'</button>';
+        }).join("")+'</div>'+
+        '<div class="row">'+
+          '<label class="fld"><span>Bottom (in)</span><input type="number" id="zbot" step="0.5" value="'+r1(z.bot*12)+'" style="width:100px"></label>'+
+          '<label class="fld"><span>Top (in)</span><input type="number" id="ztop" step="0.5" value="'+r1(z.top*12)+'" style="width:100px"></label>'+
+        '</div></div>'+
+      '<div class="panel pad stack"><div class="eyebrow">Pitch types this staff throws</div>'+
+        '<p class="inline-note">Only the ones you turn on appear as buttons in the pen.</p>'+
+        '<div class="ptgrid">'+PITCH_TYPES.map(function(p){
+          var on=types.indexOf(p.code)>=0;
+          return '<button class="pt" data-act="toggletype" data-code="'+p.code+'" aria-pressed="'+on+'">'+
+            '<span class="swatch" style="background:'+ptColor(p.code)+'"></span>'+esc(p.label)+'</button>';
+        }).join("")+'</div></div>'+
+    '</div>';
+
+  var staff="";
+  if(SB && t){
+    var st=S.staff||{members:[],invites:[]};
+    staff='<div class="sechead"><h2>Who can see '+esc(t.name)+'</h2><div class="grow"></div>'+
+      '<button class="btn btn-sm btn-primary" data-act="invite">Invite a coach</button></div>'+
+      '<div class="panel card-list">'+
+      (st.members.map(function(m){
+        var me=SBUSER && m.id===SBUSER.id;
+        return '<div class="sess"><div><div class="sess-t">'+esc(m.email)+(me?' <span class="pill s">you</span>':'')+'</div>'+
+          '<div class="dim">'+(m.role==="owner"?"Owner — can add and remove coaches":"Coach — can chart and review")+'</div></div><div></div>'+
+          '<div class="row" style="gap:6px;flex-wrap:nowrap">'+
+          (me||m.role==="owner" ? '<span class="dim">—</span>'
+            : '<button class="btn btn-sm btn-ghost btn-danger" data-act="removemember" data-id="'+m.id+'" data-email="'+esc(m.email)+'">Remove</button>')+
+          '</div></div>';
+      }).join("")+
+      st.invites.map(function(i){
+        return '<div class="sess"><div><div class="sess-t">'+esc(i.email)+' <span class="pill b">invited</span></div>'+
+          '<div class="dim">Joins automatically the first time they sign in with this address</div></div><div></div>'+
+          '<div class="row" style="gap:6px;flex-wrap:nowrap">'+
+          '<button class="btn btn-sm btn-ghost btn-danger" data-act="uninvite" data-id="'+i.id+'">Cancel</button></div></div>';
+      }).join("")) ||'<div class="empty">Just you so far.</div>'+
+      '</div>'+
+      '<p class="inline-note" style="margin:9px 2px 0">Send invited coaches the app link yourself — the invite only decides what they see once they sign in.</p>';
+  }
+
+  var backup='<div class="sechead"><h2>Backup</h2></div>'+
+    '<div class="panel pad stack">'+
+      '<p class="inline-note" style="max-width:64ch;margin:0">'+
+        (SB
+          ? 'Your bullpens are on the shared server, so every coach on this team sees the same data from any device. A backup is still a good idea before a big change.'
+          : S.local
+          ? 'This device is the only copy of your bullpens. Download a backup after each session — clearing your browser data would otherwise erase everything.'
+          : 'Your bullpens are saved to the shared database, so a backup is only needed if you want an offline copy or are moving to another setup.')+
+        ' A restore adds anything missing and leaves what is already here untouched, so importing the same file twice is safe.</p>'+
+      '<div class="row">'+
+        '<button class="btn" data-act="backup">Download backup (.json)</button>'+
+        '<label class="btn" for="restoreFile" style="cursor:pointer">Restore from backup…</label>'+
+        '<input type="file" id="restoreFile" accept="application/json,.json" style="display:none">'+
+      '</div>'+
+    '</div>';
+
+  return '<div class="sechead"><h2>Teams</h2><div class="grow"></div>'+
+    '<button class="btn btn-sm btn-primary" data-act="addteam">Add team</button></div>'+
+    '<div class="panel card-list">'+(teamCards||'<div class="empty">No teams yet.</div>')+'</div>'+ roster + staff + backup +
+    (SB && SBUSER ? '<div class="sechead"><h2>Account</h2></div><div class="panel pad row">'+
+      '<span class="dim grow">Signed in as '+esc(SBUSER.email||"")+'</span>'+
+      '<button class="btn btn-sm" data-act="signout">Sign out</button></div>' : '');
+}
+
+/* =======================================================================
+   Post-render wiring
+   ======================================================================= */
+function afterRender(){
+  var wrap=document.getElementById("zonewrap");
+  if(wrap){
+    var sess=session(), z=zoneOf();
+    if(S.heat && sess) paintHeat(document.getElementById("heatc"), sess.pitches);
+    else { var c=document.getElementById("heatc"); if(c){ var g=c.getContext("2d"); c.width=c.width; } }
+    bindZone(wrap, {
+      log:  function(x,zz){ onZoneTap(x,zz); },
+      move: function(n,x,zz){ movePitch(n,x,zz); },
+      select: function(n){ S.selPitch = (S.selPitch===n? null : n); render(); }
+    });
+  }
+  var wa=document.getElementById("zonewrapA");
+  if(wa) paintHeat(document.getElementById("heatcA"), analyticsPitches().pitches);
+  bindTooltips();
+}
+
+/* A tap logs a pitch; a drag is a page scroll and must not. Track each pointer
+   separately so a palm resting on the tablet can't swallow the finger's tap,
+   and keep the thresholds generous — a real finger rolls and lingers. */
+var lastFire=0, lastReject=0, gestureGuard=null;
+/* Any pointer gesture on the zone — tap, hold, drag — owns the DOM until it
+   finishes. A background refresh that re-rendered mid-gesture would replace the
+   SVG, orphan the listeners holding this gesture's state, and drop it silently.
+   Renders queue in render() and flush when the finger comes up. */
+function beginGesture(){
+  S.dragging=true;
+  clearTimeout(gestureGuard);
+  gestureGuard=setTimeout(endGesture, 5000);   // never stall renders forever
+}
+function endGesture(){
+  clearTimeout(gestureGuard); gestureGuard=null;
+  S.dragging=false;
+  if(S.renderPending) render();
+}
+
+function bindZone(wrap, handlers){
+  var svg=wrap.querySelector("svg"), live={}, drag=null;
+  function toUser(clientX, clientY){
+    var r=svg.getBoundingClientRect();
+    var px=(clientX-r.left)/r.width*W, py=(clientY-r.top)/r.height*H;
+    // Clamp rather than reject. The plot has a margin for the height ticks and
+    // the plate caption; a pitch in the dirt or way off the plate lands there,
+    // and silently dropping it is worse than recording it at the edge.
+    // invxp folds the perspective back out, so what gets stored is always
+    // catcher's-view coordinates no matter which side the coach is standing on.
+    return { x:Math.round(Math.max(VIEW.x0, Math.min(VIEW.x1, invxp(px)))*1000)/1000,
+             z:Math.round(Math.max(VIEW.z0, Math.min(VIEW.z1, invz(py)))*1000)/1000 };
+  }
+  function fire(clientX, clientY){
+    var u=toUser(clientX, clientY);
+    lastFire=Date.now();
+    ripple(wrap, clientX, clientY);
+    handlers.log(u.x, u.z);
+  }
+  function markAt(target){
+    return target && target.closest ? target.closest(".mark") : null;
+  }
+  // Moving a pitch must be deliberate: press and HOLD a dot to pick it up.
+  // A quick tap always logs a new pitch, even on top of an existing mark —
+  // logging is the common action and must never be stolen by an edit.
+  var HOLD_MS=450, HOLD_SLOP=10;
+  svg.addEventListener("pointerdown", function(e){
+    var g=markAt(e.target);
+    var st={x:e.clientX, y:e.clientY, t:Date.now(), timer:null};
+    live[e.pointerId]=st;
+    beginGesture();
+    if(g && handlers.move){
+      st.timer=setTimeout(function(){
+        st.timer=null;
+        drag={g:g, n:+g.dataset.i, moved:false, pos:null, id:e.pointerId};
+        wrap.classList.add("dragging");
+        liftMark(wrap, g);
+        try{ svg.setPointerCapture(e.pointerId); }catch(_){}
+        try{ if(navigator.vibrate) navigator.vibrate(18); }catch(_){}
+      }, HOLD_MS);
+    }
+  });
+  svg.addEventListener("pointermove", function(e){
+    var st=live[e.pointerId];
+    // A finger that travels before the hold completes is scrolling, not editing.
+    if(st && st.timer && Math.abs(e.clientX-st.x)+Math.abs(e.clientY-st.y) > HOLD_SLOP){
+      clearTimeout(st.timer); st.timer=null;
+    }
+    if(!drag || e.pointerId!==drag.id) return;
+    drag.moved=true;
+    var u=toUser(e.clientX, e.clientY);
+    drag.pos=u;
+    Array.prototype.forEach.call(drag.g.children, function(c){
+      c.setAttribute("cx", sx(u.x)); c.setAttribute("cy", sy(u.z));
+    });
+  });
+  function endDrag(commit, e){
+    var d=drag; drag=null; wrap.classList.remove("dragging");
+    try{ svg.releasePointerCapture(e.pointerId); }catch(_){}
+    if(!d) return;
+    if(commit && d.moved && d.pos) handlers.move(d.n, d.pos.x, d.pos.z);
+    else handlers.select(d.n);   // held, then released in place: open it for editing
+  }
+  function clearHold(id){
+    var st=live[id]; if(st && st.timer){ clearTimeout(st.timer); st.timer=null; }
+    delete live[id]; return st;
+  }
+  svg.addEventListener("pointercancel", function(e){
+    clearHold(e.pointerId);
+    if(drag && e.pointerId===drag.id) endDrag(false, e);
+    endGesture();
+  });
+  svg.addEventListener("pointerup", function(e){
+    var st=clearHold(e.pointerId);
+    if(drag && e.pointerId===drag.id){ lastFire=Date.now(); endDrag(true, e); endGesture(); return; }
+    endGesture();
+    if(!st) return;
+    var moved=Math.abs(e.clientX-st.x)+Math.abs(e.clientY-st.y);
+    if(moved>22 || Date.now()-st.t>2000){ lastReject=Date.now(); return; }
+    fire(e.clientX, e.clientY);
+  });
+  // Fallback: some browsers swallow pointerup on a framed page. A click that
+  // did not follow an accepted or rejected pointer gesture still counts.
+  svg.addEventListener("click", function(e){
+    var now=Date.now();
+    if(now-lastFire<600 || now-lastReject<600) return;
+    fire(e.clientX, e.clientY);
+  });
+}
+/* Picked-up state: the mark grows and the hint says what is happening, so a
+   pitch never moves without the person knowing they picked it up. */
+function liftMark(wrap, g){
+  g.classList.add("lifted");
+  var d=g.querySelector(".dot"); if(d) d.setAttribute("r","3.8");
+  var card=wrap.parentNode, hint=card&&card.querySelector(".taphint");
+  if(hint) hint.innerHTML='<b>Moving pitch #'+esc(g.dataset.i)+'</b> — drag to reposition, release to drop it. '+
+    'Release without moving to open it for editing.';
+}
+function ripple(wrap, clientX, clientY){
+  var r=wrap.getBoundingClientRect();
+  var d=document.createElement("span");
+  d.className="ripple";
+  d.style.left=(clientX-r.left)+"px"; d.style.top=(clientY-r.top)+"px";
+  wrap.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 450);
+}
+
+/* ---------- dialogs ---------- */
+var modalEl=null;
+function closeModal(){ if(modalEl){ modalEl.remove(); modalEl=null; } }
+function openModal(cfg){
+  closeModal();
+  var scrim=document.createElement("div"); scrim.className="scrim";
+  var fields=(cfg.fields||[]);
+  scrim.innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-label="'+esc(cfg.title)+'">'+
+    '<h3>'+esc(cfg.title)+'</h3>'+
+    (cfg.body? '<p>'+cfg.body+'</p>' : '')+
+    fields.map(function(f,i){
+      if(f.type==="segment"){
+        return '<div class="fld"><span class="eyebrow">'+esc(f.label)+'</span><div class="seg" data-seg="'+i+'">'+
+          f.options.map(function(o){ return '<button type="button" data-val="'+esc(o.value)+'" aria-pressed="'+
+            (o.value===f.value)+'">'+esc(o.label)+'</button>'; }).join("")+'</div></div>';
+      }
+      return '<label class="fld"><span>'+esc(f.label)+'</span><input type="'+(f.type||"text")+'" data-f="'+i+'" '+
+        (f.placeholder?'placeholder="'+esc(f.placeholder)+'" ':'')+'value="'+esc(f.value||"")+'"></label>';
+    }).join("")+
+    '<div class="modal-actions"><button class="btn" data-x="cancel">Cancel</button>'+
+    '<button class="btn '+(cfg.danger?'btn-primary':'btn-primary')+'" data-x="ok">'+esc(cfg.submitLabel||"Save")+'</button></div></div>';
+  document.body.appendChild(scrim); modalEl=scrim;
+
+  var vals=fields.map(function(f){ return f.value||""; });
+  scrim.addEventListener("click", function(e){
+    if(e.target===scrim){ closeModal(); return; }
+    var sb=e.target.closest("[data-seg] button");
+    if(sb){ var gi=+sb.parentNode.dataset.seg;
+      Array.prototype.forEach.call(sb.parentNode.children,function(c){ c.setAttribute("aria-pressed", c===sb?"true":"false"); });
+      vals[gi]=sb.dataset.val; return; }
+    var x=e.target.closest("[data-x]"); if(!x) return;
+    if(x.dataset.x==="cancel"){ closeModal(); return; }
+    submit();
+  });
+  function submit(){
+    fields.forEach(function(f,i){
+      if(f.type==="segment") return;
+      var el=scrim.querySelector('[data-f="'+i+'"]'); vals[i]=el?el.value.trim():"";
+    });
+    if(cfg.require!=null && !vals[cfg.require]){
+      var el2=scrim.querySelector('[data-f="'+cfg.require+'"]'); if(el2) el2.focus(); return;
+    }
+    closeModal(); cfg.onSubmit(vals);
+  }
+  scrim.addEventListener("keydown", function(e){
+    if(e.key==="Escape"){ e.stopPropagation(); closeModal(); }
+    else if(e.key==="Enter" && e.target.tagName==="INPUT"){ e.preventDefault(); submit(); }
+  });
+  var first=scrim.querySelector("input, .seg button, [data-x]"); if(first) first.focus();
+}
+function askConfirm(title, body, okLabel, onYes){
+  openModal({title:title, body:body, fields:[], submitLabel:okLabel, danger:true, onSubmit:onYes});
+}
+
+function onZoneTap(x,z){
+  if(S.armTarget){ S.target={x:x,z:z}; S.armTarget=false; render(); return; }
+  var sess=session(); if(!sess) return;
+  var v=parseFloat(document.getElementById("velo") ? document.getElementById("velo").value : S.velo);
+  var pitch={ n:(sess.pitches.length? sess.pitches[sess.pitches.length-1].n+1 : 1),
+    type:S.pitchType, x:x, z:z, ts:Date.now(),
+    velo:(isFinite(v)&&v>0? Math.round(v*10)/10 : null),
+    ev:(S.persp==="pitcher"?"P":"C"),   // which side it was charted from, for the audit trail
+    tx:S.target?S.target.x:null, tz:S.target?S.target.z:null };
+  sess.pitches.push(pitch);
+  S.selPitch=pitch.n;
+  if(!S.carryVelo){ S.velo=""; } else { S.velo = pitch.velo!=null? String(pitch.velo):""; }
+  saveSession(sess);
+  render();
+}
+
+function findPitch(n){
+  var sess=session(); if(!sess) return null;
+  return sess.pitches.filter(function(p){ return p.n===n; })[0]||null;
+}
+function movePitch(n,x,z){
+  var p=findPitch(n); if(!p) return;
+  p.x=x; p.z=z; S.selPitch=n;
+  saveSession(session()); render();
+}
+function undoLast(){
+  var sess=session(); if(!sess||!sess.pitches.length) return;
+  sess.pitches.pop(); S.selPitch=null; saveSession(sess,true); render();
+}
+
+/* tooltips on pitch dots */
+function bindTooltips(){
+  var tip=document.getElementById("tip");
+  // Touch devices have no hover: a tap on the zone logs a pitch, and pitch
+  // detail is read from the log rows instead.
+  if(!window.matchMedia || !window.matchMedia("(hover:hover)").matches){ tip.classList.add("hidden"); return; }
+  Array.prototype.forEach.call(document.querySelectorAll(".zonewrap circle.dot"), function(el){
+    el.addEventListener("pointerenter", function(e){
+      var wrapEl=el.closest(".zonewrap"), n=+el.dataset.i, p;
+      if(wrapEl && wrapEl.id==="zonewrap"){ p=findPitch(n); }        // by pitch number
+      else { p=analyticsPitches().pitches[n-1]; }                    // by draw order
+      if(!p) return;
+      var z=zoneOf(), m=missIn(p);
+      tip.innerHTML='<b>#'+n+' '+esc((PT[p.type]||PT.OT).label)+'</b><br>'+
+        '<span class="num">'+(p.velo? p.velo+' mph · ':'')+(isStrike(p,z.bot,z.top)?'Strike':'Ball')+'</span>'+
+        (m!=null? '<br><span class="num">'+r1(m)+' in off the mitt</span>':'');
+      tip.classList.remove("hidden");
+      tip.style.left=Math.min(window.innerWidth-240,e.clientX+12)+"px";
+      tip.style.top=Math.max(8,e.clientY-46)+"px";
+    });
+    el.addEventListener("pointerleave", function(){ tip.classList.add("hidden"); });
+  });
+}
+
+/* =======================================================================
+   CSV export
+   ======================================================================= */
+function csvFor(sessions){
+  var z=zoneOf();
+  // Every x is catcher's-view (positive = viewer's right) regardless of the
+  // view it was charted from, so rows from different coaches are directly
+  // comparable. charted_from records which side the coach stood on.
+  var head=["date","team","pitcher","throws","pitch_no","pitch_type","velo_mph",
+    "loc_x_in_catcher_view","loc_height_in","mitt_x_in_catcher_view","mitt_height_in",
+    "miss_in","call","charted_from","session_label"];
+  var rows=[head.join(",")];
+  sessions.forEach(function(s){
+    var p=pitcher(s.pitcherId), t=S.teams.filter(function(x){return x.id===s.teamId;})[0];
+    s.pitches.forEach(function(q){
+      var m=missIn(q);
+      rows.push([ s.date, q0(t?t.name:""), q0(p?p.name:""), p?p.throws:"",
+        q.n, q.type, q.velo==null?"":q.velo,
+        r1(q.x*12), r1(q.z*12),
+        q.tx==null?"":r1(q.tx*12), q.tz==null?"":r1(q.tz*12),
+        m==null?"":r1(m), isStrike(q,z.bot,z.top)?"strike":"ball",
+        q.ev==="P"?"pitcher view":"catcher view", q0(s.label||"") ].join(","));
+    });
+  });
+  return rows.join("\n");
+}
+function q0(s){ s=String(s==null?"":s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+
+function exportCSV(sessions, filename){
+  if(!sessions.length || !sessions.some(function(s){return s.pitches.length;})){
+    flash("There are no pitches to export yet."); return;
+  }
+  var text=csvFor(sessions);
+  if(S.downloads){
+    S.downloads.save({filename:filename, data:text}).catch(function(e){
+      var c=e&&e.code;
+      if(c==="declined") return;
+      if(c==="rate_limited") flash("A download prompt is already open. Finish it, then export again.");
+      else fallbackDownload(text, filename);
+    });
+  } else fallbackDownload(text, filename);
+}
+function fallbackDownload(text, filename){
+  try{
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"}));
+    a.download=filename; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },0);
+  }catch(e){ flash("Downloads are blocked in this view — copy the data from the tables instead."); }
+}
+
+/* =======================================================================
+   Events
+   ======================================================================= */
+document.getElementById("tabs").addEventListener("click", function(e){
+  var b=e.target.closest(".tab"); if(!b) return;
+  S.view=b.dataset.view; S.selPitch=null; render();
+});
+
+document.getElementById("app").addEventListener("change", function(e){
+  var id=e.target.id;
+  if(id==="selTeam"){ S.teamId=e.target.value; var ps=teamPitchers();
+    S.pitcherId=ps.length?ps[0].id:null; S.sessionId=null; S.aPitcher="all"; subscribeTeam(); render(); }
+  else if(id==="selPitcher"){ S.pitcherId=e.target.value; S.sessionId=null; S.selPitch=null; render(); }
+  else if(id==="carry"){ S.carryVelo=e.target.checked; }
+  else if(id==="editType"){ var ep=findPitch(S.selPitch);
+    if(ep){ ep.type=e.target.value; saveSession(session()); render(); } }
+  else if(id==="editVelo"){ var ep2=findPitch(S.selPitch);
+    if(ep2){ var vv=parseFloat(e.target.value);
+      ep2.velo = isFinite(vv)&&vv>0 ? Math.round(vv*10)/10 : null;
+      saveSession(session()); render(); } }
+  else if(id==="heat"){ S.heat=e.target.checked; render(); }
+  else if(id==="restoreFile"){ var f=e.target.files&&e.target.files[0];
+    if(f) importBackup(f); e.target.value=""; }
+  else if(id==="aPitcher"){ S.aPitcher=e.target.value; render(); }
+  else if(id==="aRange"){ S.aRange=e.target.value; render(); }
+  else if(id==="zbot"||id==="ztop"){
+    var t=team(); if(!t) return;
+    var v=parseFloat(e.target.value); if(!isFinite(v)) return;
+    if(id==="zbot") t.zoneBot=v/12; else t.zoneTop=v/12;
+    if(t.zoneTop<=t.zoneBot+0.2){ flash("The top of the zone has to sit above the bottom."); render(); return; }
+    saveTeam(t); render();
+  }
+});
+document.getElementById("app").addEventListener("input", function(e){
+  if(e.target.id==="velo") S.velo=e.target.value;
+});
+
+document.getElementById("app").addEventListener("click", function(e){
+  var del=e.target.closest("[data-del]");
+  if(del){ e.stopPropagation(); var sess=session();
+    if(sess){ sess.pitches=sess.pitches.filter(function(p){return p.n!==+del.dataset.del;}); saveSession(sess,true); S.selPitch=null; render(); }
+    return; }
+  var lr=e.target.closest(".logrow");
+  if(lr){ var n=+lr.dataset.pn; S.selPitch = S.selPitch===n? null : n; render(); return; }
+  var pt=e.target.closest("[data-pt]");
+  if(pt){ S.pitchType=pt.dataset.pt; render(); return; }
+  var pv=e.target.closest("[data-persp]");
+  if(pv){ S.persp=pv.dataset.persp;
+    try{ localStorage.setItem("bpc.persp", S.persp); }catch(_){}
+    render(); return; }
+  var b=e.target.closest("[data-act]"); if(!b) return;
+  var act=b.dataset.act, id=b.dataset.id;
+
+  if(act==="goroster"){ S.view="roster"; render(); }
+  else if(act==="newsess"){
+    if(!S.pitcherId) return;
+    var pn0=pitcher();
+    openModal({title:"Start a bullpen", submitLabel:"Start charting",
+      body:"Charting "+esc(pn0?pn0.name:"")+".",
+      fields:[{label:"Session name", value:"Bullpen "+fmtDate(today())},
+              {label:"Date", type:"date", value:today()}],
+      onSubmit:function(v){
+        var s={id:uid(), teamId:S.teamId, pitcherId:S.pitcherId, date:v[1]||today(),
+          label:v[0]||"Bullpen", notes:"", pitches:[]};
+        S.sessions.push(s); S.sessionId=s.id; S.selPitch=null; rememberSession(); saveSession(s,true); render();
+      }});
+  }
+  else if(act==="endsess"){ var cur=session(); if(cur) saveSession(cur,true); S.sessionId=null; S.selPitch=null; rememberSession(); render(); }
+  else if(act==="open"){ var s2=S.sessions.filter(function(x){return x.id===id;})[0];
+    if(s2){ S.sessionId=s2.id; S.pitcherId=s2.pitcherId; S.view="pen"; S.selPitch=null; rememberSession(); render(); } }
+  else if(act==="delsess"){ var s3=S.sessions.filter(function(x){return x.id===id;})[0];
+    if(s3) askConfirm("Delete this session?", "Its "+s3.pitches.length+" logged pitches go with it. This cannot be undone.",
+      "Delete session", function(){ delSession(s3); }); }
+  else if(act==="undo"){ undoLast(); }
+  else if(act==="signinback"){ S.sentTo=null; render(); }
+  else if(act==="signout"){ try{ localStorage.removeItem("bpc.team"); localStorage.removeItem("bpc.session"); }catch(_){}
+    SB.auth.signOut().then(function(){ S.picked=false; sbSetUser(null); }); }
+  else if(act==="invite"){
+    openModal({title:"Invite a coach", submitLabel:"Send invite", require:0,
+      body:"They will see this team the first time they sign in with this address. Nothing is emailed by us — send them the app link yourself.",
+      fields:[{label:"Email address", type:"email", placeholder:"coach@example.com"}],
+      onSubmit:function(v){ sbInvite(v[0]); }});
+  }
+  else if(act==="uninvite"){ sbUninvite(id); }
+  else if(act==="removemember"){ var em=b.dataset.email||"that coach";
+    askConfirm("Remove "+em+"?", "They lose access to this team immediately. Bullpens they charted stay.",
+      "Remove access", function(){ sbRemoveMember(id); }); }
+  else if(act==="backup"){ exportBackup(); }
+  else if(act==="doneedit"){ S.selPitch=null; render(); }
+  else if(act==="delpitch"){ var sd=session();
+    if(sd){ sd.pitches=sd.pitches.filter(function(q){return q.n!==S.selPitch;});
+      S.selPitch=null; saveSession(sd,true); render(); } }
+  else if(act==="armt"){ S.armTarget=!S.armTarget; render(); }
+  else if(act==="cleart"){ S.target=null; render(); }
+  else if(act==="v+"||act==="v-"){
+    var el=document.getElementById("velo"); var v=parseFloat(el.value);
+    if(!isFinite(v)) v = act==="v+"? 50 : 50;
+    else v += (act==="v+"?1:-1);
+    v=Math.max(20,Math.min(110,v)); el.value=v; S.velo=String(v);
+  }
+  else if(act==="exportsess"){ var cs=session(); if(cs) exportCSV([cs], csvName(cs)); }
+  else if(act==="expone"){ var so=S.sessions.filter(function(x){return x.id===id;})[0]; if(so) exportCSV([so], csvName(so)); }
+  else if(act==="exportall"){ var t2=team(); exportCSV(teamSessions(), slug((t2?t2.name:"team"))+"-bullpens.csv"); }
+  else if(act==="addteam"){
+    openModal({title:"Add a team", submitLabel:"Create team", require:0,
+      body:"You can change the strike-zone height and pitch types right after.",
+      fields:[{label:"Team name", placeholder:"Arlington Heights 12U"},
+              {label:"Age group", type:"segment", value:"11U–12U",
+               options:ZONE_PRESETS.map(function(p){ return {label:p.name, value:p.name}; })}],
+      onSubmit:function(v){
+        var z2=ZONE_PRESETS.filter(function(p){return p.name===v[1];})[0]||ZONE_PRESETS[1];
+        var t3={id:uid(), name:v[0], zoneBot:z2.bot, zoneTop:z2.top, types:["FB","CH","CB"]};
+        S.teams.push(t3); saveTeam(t3); pickTeam(t3.id); S.view="roster"; render();
+      }});
+  }
+  else if(act==="renteam"){ var t4=S.teams.filter(function(x){return x.id===id;})[0]; if(!t4) return;
+    openModal({title:"Rename team", submitLabel:"Save", require:0,
+      fields:[{label:"Team name", value:t4.name}],
+      onSubmit:function(v){ t4.name=v[0]; t4.sample=false; saveTeam(t4); render(); }}); }
+  else if(act==="delteam"){ var t5=S.teams.filter(function(x){return x.id===id;})[0];
+    if(t5) askConfirm("Delete "+t5.name+"?",
+      "Its roster and every bullpen session logged for it are deleted too.", "Delete team",
+      function(){ delTeam(t5); }); }
+  else if(act==="pickteam" || act==="pickgo"){ pickTeam(id); if(act==="pickgo") S.view="pen"; render(); }
+  else if(act==="switchteam"){ S.picked=false; S.sessionId=null; S.selPitch=null; rememberSession();
+    try{ localStorage.removeItem("bpc.team"); }catch(_){}
+    render(); }
+  else if(act==="addpitcher"){
+    openModal({title:"Add a pitcher", submitLabel:"Add to roster", require:0,
+      fields:[{label:"Name", placeholder:"First Last"},
+              {label:"Jersey number (optional)", placeholder:"11"},
+              {label:"Throws", type:"segment", value:"R",
+               options:[{label:"Right-handed", value:"R"},{label:"Left-handed", value:"L"}]}],
+      onSubmit:function(v){
+        var p2={id:uid(), teamId:S.teamId, name:v[0], number:v[1]||"", throws:v[2]||"R"};
+        S.pitchers.push(p2); S.pitcherId=p2.id; savePitcher(p2); render();
+      }});
+  }
+  else if(act==="editpitcher"){ var p3=pitcher(id); if(!p3) return;
+    openModal({title:"Edit pitcher", submitLabel:"Save", require:0,
+      fields:[{label:"Name", value:p3.name},
+              {label:"Jersey number (optional)", value:p3.number||""},
+              {label:"Throws", type:"segment", value:p3.throws||"R",
+               options:[{label:"Right-handed", value:"R"},{label:"Left-handed", value:"L"}]}],
+      onSubmit:function(v){ p3.name=v[0]; p3.number=v[1]||""; p3.throws=v[2]||"R"; p3.sample=false;
+        savePitcher(p3); render(); }}); }
+  else if(act==="delpitcher"){ var p4=pitcher(id);
+    if(p4) askConfirm("Remove "+p4.name+"?", "Their logged sessions stay in the history under this team.",
+      "Remove from roster", function(){ delPitcher(p4); }); }
+  else if(act==="zpreset"){ var t6=team(); if(!t6) return;
+    t6.zoneBot=parseFloat(b.dataset.bot); t6.zoneTop=parseFloat(b.dataset.top); saveTeam(t6); render(); }
+  else if(act==="toggletype"){
+    var t7=team(); if(!t7) return;
+    var code=b.dataset.code, cur2=activeTypes().slice(), i=cur2.indexOf(code);
+    if(i>=0){ if(cur2.length===1){ flash("Keep at least one pitch type turned on."); return; } cur2.splice(i,1); }
+    else cur2.push(code);
+    cur2.sort(function(a,c){ return PITCH_TYPES.findIndex(function(x){return x.code===a;}) -
+      PITCH_TYPES.findIndex(function(x){return x.code===c;}); });
+    t7.types=cur2; if(cur2.indexOf(S.pitchType)<0) S.pitchType=cur2[0];
+    saveTeam(t7); render();
+  }
+});
+/* Backup / restore.
+   When the page runs without a shared database every pitch lives in this one
+   browser, where clearing site data erases it. A file the coach controls is
+   the only real safety net, and it doubles as the way to move a season onto a
+   new iPad. Restore MERGES by id, so importing the same file twice is safe. */
+function exportBackup(){
+  var data={ format:"bullpen-charts", version:1, exportedAt:new Date().toISOString(),
+    teams:S.teams, pitchers:S.pitchers, sessions:S.sessions };
+  var name="bullpen-charts-backup-"+today()+".json";
+  var text=JSON.stringify(data,null,1);
+  if(S.downloads){
+    S.downloads.save({filename:name, data:text}).catch(function(e){
+      if(e&&e.code==="declined") return;
+      fallbackDownload(text,name);
+    });
+  } else fallbackDownload(text,name);
+}
+function importBackup(file){
+  var rd=new FileReader();
+  rd.onerror=function(){ flash("That file could not be read. Pick the .json backup again."); };
+  rd.onload=function(){
+    var d;
+    try{ d=JSON.parse(rd.result); }catch(e){ flash("That is not a Bullpen Charts backup — the file is not valid JSON."); return; }
+    if(!d || d.format!=="bullpen-charts" || !Array.isArray(d.teams)){
+      flash("That file is not a Bullpen Charts backup."); return;
+    }
+    var have={}, added={t:0,p:0,s:0}, remap={};
+    // Postgres keys are uuids; a backup from the local or Claude-hosted version
+    // can carry ids like "sample-12u", so rewrite those and keep the links.
+    var needUuid=!!SB;
+    var fix=function(id){
+      if(!needUuid || isUuid(id)) return id;
+      if(!remap[id]) remap[id]=uid();
+      return remap[id];
+    };
+    S.teams.forEach(function(x){ have[x.id]=1; });
+    S.pitchers.forEach(function(x){ have[x.id]=1; });
+    S.sessions.forEach(function(x){ have[x.id]=1; });
+    (d.teams||[]).forEach(function(t){
+      t=Object.assign({}, t, {id:fix(t.id)});
+      if(have[t.id]) return; have[t.id]=1; S.teams.push(t); saveTeam(t); added.t++; });
+    (d.pitchers||[]).forEach(function(p){
+      if(!p.teamId) return;
+      p=Object.assign({}, p, {id:fix(p.id), teamId:fix(p.teamId)});
+      if(have[p.id]) return; have[p.id]=1; S.pitchers.push(p); savePitcher(p); added.p++; });
+    (d.sessions||[]).forEach(function(s){
+      s=Object.assign({}, s, {id:fix(s.id), teamId:fix(s.teamId),
+        pitcherId:s.pitcherId?fix(s.pitcherId):null, pitches:s.pitches||[]});
+      if(have[s.id]) return; have[s.id]=1; S.sessions.push(s); saveSession(s,true); added.s++; });
+    persistLocal();
+    flash("Restored "+added.t+" team"+(added.t===1?"":"s")+", "+added.p+" pitcher"+(added.p===1?"":"s")+
+      " and "+added.s+" bullpen"+(added.s===1?"":"s")+". Anything already here was left alone.");
+    render();
+  };
+  rd.readAsText(file);
+}
+function csvName(s){ var p=pitcher(s.pitcherId); return slug((p?p.name:"pitcher")+"-"+(s.date||""))+"-bullpen.csv"; }
+function slug(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"bullpen"; }
+
+document.addEventListener("keydown", function(e){
+  if(modalEl) return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if(S.view!=="pen") return;
+  var types=activeTypes();
+  if(e.key>="1" && e.key<="6"){ var i=+e.key-1; if(types[i]){ S.pitchType=types[i]; render(); } }
+  else if(e.key==="t"||e.key==="T"){ S.armTarget=!S.armTarget; render(); }
+  else if(e.key==="u"||e.key==="U"||(e.key==="z"&&(e.metaKey||e.ctrlKey))){ e.preventDefault(); undoLast(); }
+  else if(e.key==="Escape"){ if(S.armTarget){ S.armTarget=false; render(); } }
+});
+
+var resizeT=null;
+window.addEventListener("resize", function(){
+  clearTimeout(resizeT);
+  resizeT=setTimeout(function(){
+    var c=document.getElementById("heatc");
+    if(c && S.heat && session()) paintHeat(c, session().pitches);
+    var ca=document.getElementById("heatcA");
+    if(ca) paintHeat(ca, analyticsPitches().pitches);
+  }, 180);
+});
+
+/* =======================================================================
+   Boot
+   ======================================================================= */
+function subscribeTeam(){
+  if(!S.db) return;
+  S.unsub.filter(function(u){return u.scope==="team";}).forEach(function(u){ u.fn(); });
+  S.unsub=S.unsub.filter(function(u){return u.scope!=="team";});
+  if(!S.teamId) return;
+  var tid=S.teamId;
+  S.unsub.push({scope:"team", fn:S.db.collection("teams/"+tid+"/pitchers").onSnapshot(function(snap){
+    var incoming=snap.docs.map(function(d){ return Object.assign({id:d.id, teamId:tid}, d.data()); });
+    var mine=S.pitchers.filter(function(p){return p.teamId===tid;});
+    S.pitchers = S.pitchers.filter(function(p){return p.teamId!==tid;}).concat(mergeList(mine, incoming));
+    if(!pitcher()) { var ps=teamPitchers(); S.pitcherId=ps.length?ps[0].id:null; }
+    render();
+  }, dbErr)});
+  S.unsub.push({scope:"team", fn:S.db.collection("sessions").where("teamId","==",tid).limit(400)
+    .onSnapshot(function(snap){
+      var incoming=snap.docs.map(function(d){
+        var s=Object.assign({id:d.id}, d.data()); s.pitches=s.pitches||[]; return s; });
+      var mine=S.sessions.filter(function(s){return s.teamId===tid;});
+      S.sessions = S.sessions.filter(function(s){return s.teamId!==tid;}).concat(mergeList(mine, incoming));
+      restoreSession();
+      render();
+    }, dbErr)});
+}
+
+/* =======================================================================
+   Supabase backend — shared data across coaches and devices.
+   Active only when config.js supplies a project; otherwise the app runs
+   exactly as before (Claude's shared store, or this browser alone).
+   Access is enforced by row level security in Postgres, so the publishable
+   key below is safe in a static page: it grants nothing on its own.
+   ======================================================================= */
+var SBCFG = (typeof window!=="undefined" && window.BULLPEN_CONFIG) || null;
+var SB = null, SBUSER = null, sbChannels = [];
+
+function sbTeamRow(t){ return { id:t.id, name:t.name, zone_bot:t.zoneBot, zone_top:t.zoneTop,
+  types:t.types||["FB","CH","CB"], created_by:SBUSER?SBUSER.id:null }; }
+function sbPitcherRow(p){ return { id:p.id, team_id:p.teamId, name:p.name,
+  number:p.number||"", throws:p.throws||"R" }; }
+function sbSessionRow(s){ return { id:s.id, team_id:s.teamId, pitcher_id:s.pitcherId||null,
+  date:s.date, label:s.label||"", notes:s.notes||"", pitches:s.pitches||[],
+  created_by:SBUSER?SBUSER.id:null }; }
+function fromTeamRow(r){ return { id:r.id, name:r.name, zoneBot:r.zone_bot, zoneTop:r.zone_top,
+  types:r.types||["FB","CH","CB"] }; }
+function fromPitcherRow(r){ return { id:r.id, teamId:r.team_id, name:r.name,
+  number:r.number||"", throws:r.throws||"R" }; }
+function fromSessionRow(r){ return { id:r.id, teamId:r.team_id, pitcherId:r.pitcher_id,
+  date:r.date, label:r.label||"", notes:r.notes||"", pitches:r.pitches||[] }; }
+
+function sbSave(table, row){
+  mark(row.id);
+  SB.from(table).upsert(row).then(function(res){
+    setTimeout(function(){ unmark(row.id); }, 800);
+    if(res.error) sbErr(res.error, "save");
+  });
+}
+function sbDelete(table, id){
+  SB.from(table).delete().eq("id", id).then(function(res){
+    if(res.error) sbErr(res.error, "delete");
+  });
+}
+function sbErr(e, what){
+  var m=(e&&e.message)||"";
+  if(/row-level security|permission/i.test(m)){
+    flash("You do not have access to change that. Ask whoever owns the team to add you.");
+  } else if(/JWT|token|session/i.test(m)){
+    flash("Your sign-in expired. Reload the page and sign in again.");
+  } else {
+    flash("That "+what+" did not reach the server. Check your connection — your work is still on screen.");
+  }
+}
+
+function sbLoadTeams(){
+  return SB.from("teams").select("*").order("name").then(function(r){
+    if(r.error){ sbErr(r.error,"load"); return; }
+    S.teams=(r.data||[]).map(fromTeamRow);
+  });
+}
+function sbLoadTeam(tid){
+  return Promise.all([
+    SB.from("pitchers").select("*").eq("team_id",tid),
+    SB.from("sessions").select("*").eq("team_id",tid).order("date",{ascending:false}).limit(400)
+  ]).then(function(res){
+    if(res[0].error||res[1].error){ sbErr(res[0].error||res[1].error,"load"); return; }
+    S.pitchers=S.pitchers.filter(function(p){return p.teamId!==tid;})
+      .concat((res[0].data||[]).map(fromPitcherRow));
+    S.sessions=S.sessions.filter(function(s){return s.teamId!==tid;})
+      .concat((res[1].data||[]).map(fromSessionRow));
+    if(!pitcher()){ var ps=teamPitchers(); S.pitcherId=ps.length?ps[0].id:null; }
+    restoreSession();
+    render();
+  });
+}
+/* Live updates. A row this device is mid-write on is left alone, same rule as
+   the artifact backend: unconfirmed local state wins until the write lands. */
+function sbSubscribe(tid){
+  sbChannels.forEach(function(c){ try{ SB.removeChannel(c); }catch(e){} });
+  sbChannels=[];
+  var ch=SB.channel("team-"+tid)
+    .on("postgres_changes", {event:"*", schema:"public", table:"sessions", filter:"team_id=eq."+tid},
+      function(m){ sbApply("sessions", m); })
+    .on("postgres_changes", {event:"*", schema:"public", table:"pitchers", filter:"team_id=eq."+tid},
+      function(m){ sbApply("pitchers", m); })
+    .subscribe();
+  sbChannels.push(ch);
+}
+function sbApply(table, msg){
+  var row=msg.new && msg.new.id ? msg.new : msg.old;
+  if(!row || !row.id) return;
+  var id=row.id;
+  if(inflight[id]) return;                       // our own unconfirmed write
+  var list = table==="sessions" ? S.sessions : S.pitchers;
+  var conv = table==="sessions" ? fromSessionRow : fromPitcherRow;
+  var idx=-1; for(var i=0;i<list.length;i++){ if(list[i].id===id){ idx=i; break; } }
+  if(msg.eventType==="DELETE"){
+    if(idx>=0) list.splice(idx,1);
+    if(table==="sessions" && S.sessionId===id){ S.sessionId=null; rememberSession(); }
+  } else {
+    var obj=conv(msg.new);
+    if(idx>=0) list[idx]=obj; else list.push(obj);
+  }
+  render();
+}
+
+/* ---- membership ---- */
+function sbLoadStaff(tid){
+  return Promise.all([
+    SB.from("team_members").select("user_id, role").eq("team_id",tid),
+    SB.from("team_invites").select("id, email, role").eq("team_id",tid)
+  ]).then(function(res){
+    var members=(res[0].data)||[], invites=(res[1].data)||[];
+    var ids=members.map(function(m){ return m.user_id; });
+    if(!ids.length){ S.staff={members:[], invites:invites}; render(); return; }
+    return SB.from("profiles").select("id, email").in("id", ids).then(function(pr){
+      var byId={}; (pr.data||[]).forEach(function(x){ byId[x.id]=x.email; });
+      S.staff={ members:members.map(function(m){
+        return {id:m.user_id, role:m.role, email:byId[m.user_id]||"(unknown)"}; }), invites:invites };
+      render();
+    });
+  });
+}
+function sbInvite(email){
+  email=String(email||"").trim().toLowerCase();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ flash("That does not look like an email address."); return; }
+  SB.from("team_invites").upsert({team_id:S.teamId, email:email, invited_by:SBUSER.id},
+      {onConflict:"team_id,email"}).then(function(r){
+    if(r.error){ sbErr(r.error,"invite"); return; }
+    flash(email+" can now see this team as soon as they sign in with that address.");
+    sbLoadStaff(S.teamId);
+  });
+}
+function sbUninvite(id){ SB.from("team_invites").delete().eq("id",id).then(function(){ sbLoadStaff(S.teamId); }); }
+function sbRemoveMember(uid2){
+  SB.from("team_members").delete().eq("team_id",S.teamId).eq("user_id",uid2).then(function(r){
+    if(r.error){ sbErr(r.error,"change"); return; }
+    sbLoadStaff(S.teamId);
+  });
+}
+
+/* ---- auth ---- */
+function viewSignIn(){
+  return '<div class="pickwrap">'+
+    '<h1 class="pickhead">Sign in to Bullpen Charts</h1>'+
+    '<p class="picksub">Enter the email your coaching staff invited. We send a one-tap link — no password to remember or share.</p>'+
+    '<form class="signin" id="signinForm">'+
+      '<input type="email" id="signinEmail" placeholder="you@example.com" autocomplete="email" required aria-label="Email address">'+
+      '<button class="btn btn-primary" type="submit">Email me a link</button>'+
+    '</form>'+
+    '<p class="inline-note" style="margin-top:14px">'+
+      'If nothing arrives in a minute, check spam. The link signs in the device you open it on, so open it on the tablet you chart with.</p>'+
+  '</div>';
+}
+function sbSendLink(email){
+  SB.auth.signInWithOtp({ email:email, options:{ emailRedirectTo:window.location.href } })
+    .then(function(r){
+      if(r.error){ flash(r.error.message||"That link could not be sent. Try again in a moment."); return; }
+      S.sentTo=email; render();
+    });
+}
+function viewSent(){
+  return '<div class="pickwrap">'+
+    '<h1 class="pickhead">Check your email</h1>'+
+    '<p class="picksub">A sign-in link is on its way to <b>'+esc(S.sentTo)+'</b>. Open it on this device.</p>'+
+    '<button class="btn" data-act="signinback">Use a different address</button></div>';
+}
+
+function bootSupabase(){
+  SB = window.supabase.createClient(SBCFG.url, SBCFG.anonKey, {
+    auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+  });
+  S.backend="supabase";
+  SB.auth.getSession().then(function(r){
+    sbSetUser(r && r.data && r.data.session ? r.data.session.user : null);
+  });
+  SB.auth.onAuthStateChange(function(evt, sess){
+    var u=sess?sess.user:null;
+    if((u&&u.id)!==(SBUSER&&SBUSER.id)) sbSetUser(u);
+  });
+}
+function sbSetUser(u){
+  SBUSER=u;
+  S.authed=!!u; S.sentTo=null; S.ready=true;
+  if(!u){ S.teams=[]; S.pitchers=[]; S.sessions=[]; S.picked=false; render(); return; }
+  // Claim any invites waiting on this address. Needed on EVERY sign-in, not
+  // just the first: an existing account invited to a second team would
+  // otherwise never see it. Also writes the profile row.
+  SB.rpc("claim_invites").then(function(){ return sbLoadTeams(); }, function(){ return sbLoadTeams(); })
+    .then(function(){
+    var saved=null; try{ saved=localStorage.getItem("bpc.team"); }catch(e){}
+    if(saved && S.teams.some(function(t){return t.id===saved;})) pickTeam(saved, false);
+    render();
+  });
+}
+
+function boot(){
+  if(SBCFG && SBCFG.url && SBCFG.anonKey && window.supabase){ bootSupabase(); return; }
+  render();
+  Promise.resolve(window.claude && window.claude.use ? window.claude.use("downloads") : null)
+    .then(function(d){ S.downloads=d||null; }).catch(function(){ S.downloads=null; });
+
+  Promise.resolve(window.claude && window.claude.use ? window.claude.use("db") : null)
+    .then(function(db){
+      if(!db){ startLocal(); return; }
+      S.db=db;
+      db.collection("teams").onSnapshot(function(snap){
+        var incoming=snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        S.teams = mergeList(S.teams, incoming)
+          .sort(function(a,b){ return String(a.name||"").localeCompare(String(b.name||"")); });
+        if(!S.ready){
+          S.ready=true;
+          var saved=null; try{ saved=localStorage.getItem("bpc.team"); }catch(e){}
+          if(saved && S.teams.some(function(t){return t.id===saved;})) pickTeam(saved, false);
+        } else if(S.picked && !team()){ S.picked=false; S.teamId=null; }
+        setBanner(); render();
+      }, function(e){ dbErr(e); startLocal(); });
+      setTimeout(function(){ if(!S.ready){ startLocal(); } }, 8000);
+    })
+    .catch(function(){ startLocal(); });
+}
+function startLocal(){
+  if(S.ready && !S.local) return;
+  S.local=true; S.db=null;
+  if(!restoreLocal()) seedLocal();
+  S.picked=false; S.sessionId=null;
+  var saved=null; try{ saved=localStorage.getItem("bpc.team"); }catch(e){}
+  if(saved && S.teams.some(function(t){return t.id===saved;})){ pickTeam(saved, false); restoreSession(); }
+  S.ready=true; setBanner(); render();
+}
+S.heat=false;
+boot();
+})();
+</script>
+
+<script>
+// Offline support: bullpens happen at fields with bad signal. Cache-first for
+// the shell, so the app opens with no connection at all.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* non-fatal */ });
+  });
+}
+</script>
+</body>
+</html>

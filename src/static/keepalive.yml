@@ -1,0 +1,32 @@
+# Supabase pauses a free project after a week with no activity. A youth
+# baseball season has quiet weeks, so this pings the database every few days to
+# keep it awake. GitHub Actions minutes are free on public repositories.
+#
+# Setup: move this file to .github/workflows/keepalive.yml, then add two
+# repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL       your project URL
+#   SUPABASE_ANON_KEY  the same anon/publishable key that is in config.js
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "0 12 * * 1,4"     # Mondays and Thursdays, 12:00 UTC
+  workflow_dispatch:            # and a button you can press yourself
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Touch the database
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/teams?select=id&limit=1")
+          echo "PostgREST replied $code"
+          # 200 = awake, 401/403 = awake but refusing anonymous reads (expected,
+          # RLS is doing its job). Anything else means the project is asleep.
+          if [ "$code" != "200" ] && [ "$code" != "401" ] && [ "$code" != "403" ]; then
+            echo "::error::Supabase did not answer normally (HTTP $code)"
+            exit 1
+          fi
