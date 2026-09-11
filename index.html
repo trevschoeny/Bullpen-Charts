@@ -25,6 +25,7 @@
 </style>
 </head>
 <body>
+<!-- Bullpen Charts build 2026-09-11 · 56d425 -->
 <title>Bullpen Charts</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -1970,7 +1971,17 @@ function sbSetUser(u){
   });
 }
 
+/* Stamped by build.py at deploy time so you can tell at a glance which build a
+   device is actually running — the offline cache means an iPad can be a
+   version behind. Left untouched when the file runs unbuilt. */
+var BUILD = "2026-09-11 · 56d425";
+if(BUILD.charAt(0)==="_") BUILD="";
+
 function boot(){
+  if(BUILD){
+    var bs=document.getElementById("brandsub");
+    if(bs){ bs.textContent="Build "+BUILD; bs.title="The version this device is running"; }
+  }
   if(SBCFG && SBCFG.url && SBCFG.anonKey && window.supabase){ bootSupabase(); return; }
   render();
   Promise.resolve(window.claude && window.claude.use ? window.claude.use("downloads") : null)
