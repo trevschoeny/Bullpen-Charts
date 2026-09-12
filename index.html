@@ -25,7 +25,7 @@
 </style>
 </head>
 <body>
-<!-- Bullpen Charts build 2026-09-11 · 56d425 -->
+<!-- Bullpen Charts build 2026-09-12 · 06cbcf -->
 <title>Bullpen Charts</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -780,6 +780,18 @@ function render(){
       var v=document.getElementById("signinEmail").value.trim();
       if(v) sbSendLink(v);
     });
+    var cf=document.getElementById("codeForm");
+    if(cf){
+      cf.addEventListener("submit", function(e){
+        e.preventDefault();
+        sbVerifyCode(document.getElementById("otpCode").value);
+      });
+      var ci=document.getElementById("otpCode");
+      if(ci){ ci.focus(); ci.addEventListener("input", function(){
+        // iOS autofills the whole code from the notification; submit on 6 digits.
+        if(ci.value.replace(/\D/g,"").length===6) sbVerifyCode(ci.value);
+      }); }
+    }
     return;
   }
   if(!S.ready){ tabs.classList.add("hidden");
@@ -1934,16 +1946,49 @@ function sbSendLink(email){
       S.sentTo=email; render();
     });
 }
+/* Two ways in, because a link is not always enough.
+   On iOS a home-screen app and Safari keep SEPARATE logins, and an emailed
+   link always opens in Safari — so tapping it can never sign in the installed
+   app. Typing the code keeps you in whichever one you are already holding. */
 function viewSent(){
   return '<div class="pickwrap">'+
     '<h1 class="pickhead">Check your email</h1>'+
-    '<p class="picksub">A sign-in link is on its way to <b>'+esc(S.sentTo)+'</b>. Open it on this device.</p>'+
-    '<button class="btn" data-act="signinback">Use a different address</button></div>';
+    '<p class="picksub">Sent to <b>'+esc(S.sentTo)+'</b>. Enter the 6-digit code from that email — '+
+      'that signs you in right here, which is what you want if you added this to your home screen.</p>'+
+    '<form class="signin" id="codeForm">'+
+      '<input type="text" id="otpCode" inputmode="numeric" autocomplete="one-time-code" '+
+        'pattern="[0-9]*" maxlength="8" placeholder="123456" aria-label="6-digit code" '+
+        'style="text-align:center;font-family:var(--mono);font-size:24px;letter-spacing:.25em;flex:1 1 200px">'+
+      '<button class="btn btn-primary" type="submit">Sign in</button>'+
+    '</form>'+
+    '<p class="inline-note" style="margin-top:14px">The link in that email works too, but it opens in your browser. '+
+      'If you are in the home-screen app, use the code.</p>'+
+    '<button class="btn btn-sm btn-ghost" data-act="signinback" style="margin-top:12px">Use a different address</button></div>';
+}
+function sbVerifyCode(code){
+  code=String(code||"").replace(/\D/g,"");
+  if(code.length<6){ flash("That code should be 6 digits."); return; }
+  SB.auth.verifyOtp({ email:S.sentTo, token:code, type:"email" }).then(function(r){
+    if(r.error){
+      flash(/expired|invalid/i.test(r.error.message||"")
+        ? "That code has expired or does not match. Send a new one and try again."
+        : (r.error.message||"That code did not work."));
+      return;
+    }
+    var u=r.data && r.data.user;
+    if(u) sbSetUser(u);
+  });
 }
 
 function bootSupabase(){
   SB = window.supabase.createClient(SBCFG.url, SBCFG.anonKey, {
-    auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    auth:{
+      persistSession:true,          // keeps you signed in across app launches
+      autoRefreshToken:true,        // renews the token quietly before it expires
+      detectSessionInUrl:true,      // completes sign-in when the emailed link lands
+      flowType:"implicit",          // link works even if it opens in another browser
+      storageKey:"bullpen-auth"
+    }
   });
   S.backend="supabase";
   SB.auth.getSession().then(function(r){
@@ -1974,7 +2019,7 @@ function sbSetUser(u){
 /* Stamped by build.py at deploy time so you can tell at a glance which build a
    device is actually running — the offline cache means an iPad can be a
    version behind. Left untouched when the file runs unbuilt. */
-var BUILD = "2026-09-11 · 56d425";
+var BUILD = "2026-09-12 · 06cbcf";
 if(BUILD.charAt(0)==="_") BUILD="";
 
 function boot(){
